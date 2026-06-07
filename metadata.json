@@ -1,0 +1,6 @@
+{
+  "name": "Onstaege",
+  "description": "An immersive real-time event experience platform that extends physical events to global audiences.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
