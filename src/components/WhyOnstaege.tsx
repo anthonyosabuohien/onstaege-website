@@ -18,7 +18,7 @@ export default function WhyOnstaege({ theme }: WhyOnstaegeProps) {
 
         <div className={`space-y-4 font-sans text-base leading-relaxed max-w-2xl mx-auto ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-650'}`}>
           <p>
-            Onstaege dissolves distance and capacity constraints. Experience seamless digital synchronization that transforms localized events into massive international streams.
+            Onstaege dissolves distance and capacity constraints. Experience seamless digital synchronization that transforms localized events into massive international events.
           </p>
         </div>
       </div>

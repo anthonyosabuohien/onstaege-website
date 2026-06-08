@@ -17,7 +17,7 @@ import {
   Star,
   PartyPopper
 } from "lucide-react";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import { Theme } from "../types";
 
 interface BusinessImpactProps {
@@ -73,13 +73,22 @@ function AnimatedCounter({
     maximumFractionDigits: decimalPlaces,
   });
 
-  return <span>{prefix}{formatted}{suffix}</span>;
+  return <span className="whitespace-nowrap inline-block">{prefix}{formatted}{suffix}</span>;
 }
 
 export default function BusinessImpact({ theme }: BusinessImpactProps) {
   // --- STATE ---
   const [userRole, setUserRole] = useState("Event Organizer");
   const [eventType, setEventType] = useState("Wedding");
+  
+  // UI modes
+  const [calculatorMode, setCalculatorMode] = useState<"simple" | "advanced">("simple");
+
+  // Virtual Audience Spending States
+  const [avgVirtualCashSpray, setAvgVirtualCashSpray] = useState<string>("");
+  const [avgVirtualTip, setAvgVirtualTip] = useState<string>("");
+  const [avgVirtualVendorSpend, setAvgVirtualVendorSpend] = useState<string>("");
+  const [avgVirtualGift, setAvgVirtualGift] = useState<string>("");
   
   // Audience Reach State
   const [audienceReachMode, setAudienceReachMode] = useState<"preset" | "custom">("preset");
@@ -122,6 +131,14 @@ export default function BusinessImpact({ theme }: BusinessImpactProps) {
 
   const symbol = getCurrencySymbol();
 
+  const getBigFigureTextClass = (val: number, isCard3 = false) => {
+    const len = (symbol + Math.round(val).toLocaleString()).length + (isCard3 ? 1 : 0);
+    if (len > 14) return isCard3 ? "text-sm sm:text-base" : "text-sm sm:text-base";
+    if (len > 11) return isCard3 ? "text-lg sm:text-xl" : "text-base sm:text-lg";
+    if (len > 8) return isCard3 ? "text-xl sm:text-2xl" : "text-lg sm:text-xl";
+    return isCard3 ? "text-2xl sm:text-3xl" : "text-xl sm:text-2xl";
+  };
+
   // Parse safety inputs helper
   const numInput = (val: string) => {
     const parsed = parseFloat(val.replace(/,/g, ""));
@@ -137,9 +154,9 @@ export default function BusinessImpact({ theme }: BusinessImpactProps) {
 
   // Physical Tickets Revenue
   const pricePerPhysicalTicket = numInput(physicalTicketPrice);
-  const cashSpraysPhysical = numInput(expectedCashSprays);
-  const tipsPhysical = numInput(expectedTips);
-  const vendorSalesPhysical = numInput(expectedVendorSales);
+  const cashSpraysPhysical = calculatorMode === "advanced" ? numInput(expectedCashSprays) : 0;
+  const tipsPhysical = calculatorMode === "advanced" ? numInput(expectedTips) : 0;
+  const vendorSalesPhysical = calculatorMode === "advanced" ? numInput(expectedVendorSales) : 0;
 
   const physicalTicketsRevenue = physicalAttendance * pricePerPhysicalTicket;
   
@@ -151,19 +168,36 @@ export default function BusinessImpact({ theme }: BusinessImpactProps) {
   const virtualTicketPrice = pricePerPhysicalTicket * 0.3;
   const virtualTicketRevenue = virtualAttendees * virtualTicketPrice;
 
-  // Averages per physical guest (safeguarded against divide by zero)
-  const averageCashSpraysPerGuest = physicalAttendance > 0 ? (cashSpraysPhysical / physicalAttendance) : 0;
-  const averageTipsPerGuest = physicalAttendance > 0 ? (tipsPhysical / physicalAttendance) : 0;
-  const averageVendorSpendPerGuest = physicalAttendance > 0 ? (vendorSalesPhysical / physicalAttendance) : 0;
+  // Estimation math for virtual metrics
+  const estimatedVirtualCashSpray = physicalAttendance > 0 ? (cashSpraysPhysical / physicalAttendance) * 0.3 : 0;
+  const estimatedVirtualTip = physicalAttendance > 0 ? (tipsPhysical / physicalAttendance) * 0.3 : 0;
+  const estimatedVirtualVendorSpend = physicalAttendance > 0 ? (vendorSalesPhysical / physicalAttendance) * 0.3 : 0;
 
-  // Virtual Cash Sprays = Virtual Attendees * 30% * Average Physical Cash Sprays per Gast
-  const virtualCashSprays = virtualAttendees * 0.3 * averageCashSpraysPerGuest;
+  // Check if estimate active
+  const isEstimatedSpray = calculatorMode === "advanced" && avgVirtualCashSpray === "" && cashSpraysPhysical > 0 && physicalAttendance > 0;
+  const isEstimatedTip = calculatorMode === "advanced" && avgVirtualTip === "" && tipsPhysical > 0 && physicalAttendance > 0;
+  const isEstimatedVendor = calculatorMode === "advanced" && avgVirtualVendorSpend === "" && vendorSalesPhysical > 0 && physicalAttendance > 0;
 
-  // Virtual Tips = Virtual Attendees * 30% * Average Tips
-  const virtualTips = virtualAttendees * 0.3 * averageTipsPerGuest;
+  // Actual average values used in calculation
+  const actualVirtualCashSpray = calculatorMode === "advanced"
+    ? (avgVirtualCashSpray === "" ? estimatedVirtualCashSpray : numInput(avgVirtualCashSpray))
+    : numInput(avgVirtualGift);
 
-  // Virtual Vendor Revenue = Virtual Attendees * 30% * Average Vendor Spend
-  const virtualVendorRevenue = virtualAttendees * 0.3 * averageVendorSpendPerGuest;
+  const actualVirtualTip = calculatorMode === "advanced"
+    ? (avgVirtualTip === "" ? estimatedVirtualTip : numInput(avgVirtualTip))
+    : 0;
+
+  const actualVirtualVendorSpend = calculatorMode === "advanced"
+    ? (avgVirtualVendorSpend === "" ? estimatedVirtualVendorSpend : numInput(avgVirtualVendorSpend))
+    : 0;
+
+  // Virtual revenue outcomes
+  const virtualCashSprays = virtualAttendees * actualVirtualCashSpray;
+  const virtualTips = virtualAttendees * actualVirtualTip;
+  const virtualVendorRevenue = virtualAttendees * actualVirtualVendorSpend;
+
+  // Empty state checker - checks if optional virtual spends are zero
+  const isEmptyState = virtualCashSprays === 0 && virtualTips === 0 && virtualVendorRevenue === 0;
 
   // Total Virtual Revenue
   const totalVirtualRevenue = virtualTicketRevenue + virtualCashSprays + virtualTips + virtualVendorRevenue;
@@ -198,7 +232,7 @@ export default function BusinessImpact({ theme }: BusinessImpactProps) {
     if (isWeddingMatch) {
       triggerConfettiBurst("Your audience is bigger than your venue! 🎉 Perfect multiplier calculated successfully.");
     }
-  }, [eventType, currentAudienceReach, physicalAttendance, conversionRate, physicalTicketPrice, expectedCashSprays, expectedTips, expectedVendorSales]);
+  }, [eventType, currentAudienceReach, physicalAttendance, conversionRate, physicalTicketPrice, expectedCashSprays, expectedTips, expectedVendorSales, calculatorMode]);
 
   // Load Preset Case Example
   const loadDemoCase = () => {
@@ -213,6 +247,13 @@ export default function BusinessImpact({ theme }: BusinessImpactProps) {
     setExpectedCashSprays("2000000");
     setExpectedTips("500000");
     setExpectedVendorSales("1500000");
+    
+    // Clear custom virtual inputs for showroom AI Estimates
+    setAvgVirtualCashSpray("");
+    setAvgVirtualTip("");
+    setAvgVirtualVendorSpend("");
+    setAvgVirtualGift("");
+    setCalculatorMode("advanced");
     
     triggerConfettiBurst("Your audience is bigger than your venue! 🚀 Loaded the default showcase mathematical preset.");
   };
@@ -237,6 +278,17 @@ export default function BusinessImpact({ theme }: BusinessImpactProps) {
       setShowCelebration(false);
     }, 5500);
   };
+
+  const getPlaceholders = () => {
+    switch (currency) {
+      case "USD": return { spray: "2", tip: "1", vendor: "5", gift: "3" };
+      case "GBP": return { spray: "2", tip: "1", vendor: "5", gift: "3" };
+      case "EUR": return { spray: "2", tip: "1", vendor: "5", gift: "3" };
+      case "NGN": return { spray: "500", tip: "200", vendor: "1000", gift: "700" };
+      default: return { spray: "500", tip: "200", vendor: "1000", gift: "700" };
+    }
+  };
+  const pMax = getPlaceholders();
 
   return (
     <section id="earnings" className="relative z-10 py-24 overflow-hidden bg-black text-white select-none">
@@ -311,6 +363,32 @@ export default function BusinessImpact({ theme }: BusinessImpactProps) {
           </div>
         </div>
 
+        {/* Toggle Mode Selection Segmented Control */}
+        <div className="flex justify-center mb-10 bg-[#14151a]/80 border border-zinc-800 p-1.5 rounded-2xl max-w-[320px] mx-auto shadow-xl">
+          <button
+            type="button"
+            onClick={() => setCalculatorMode("simple")}
+            className={`flex-1 py-2.5 text-[11px] font-bold tracking-wider uppercase rounded-xl transition-all cursor-pointer ${
+              calculatorMode === "simple"
+                ? "bg-brand-purple text-white shadow-lg shadow-purple-500/25"
+                : "text-zinc-500 hover:text-zinc-300"
+            }`}
+          >
+            Simple Mode
+          </button>
+          <button
+            type="button"
+            onClick={() => setCalculatorMode("advanced")}
+            className={`flex-1 py-2.5 text-[11px] font-bold tracking-wider uppercase rounded-xl transition-all cursor-pointer ${
+              calculatorMode === "advanced"
+                ? "bg-brand-purple text-white shadow-lg shadow-purple-500/25"
+                : "text-zinc-500 hover:text-zinc-300"
+            }`}
+          >
+            Advanced Mode
+          </button>
+        </div>
+
         {/* Master Calculator Split Layout Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
           
@@ -345,9 +423,20 @@ export default function BusinessImpact({ theme }: BusinessImpactProps) {
                       className="w-full bg-[#14151a] border border-zinc-800/80 rounded-xl px-4 py-3 text-sm text-zinc-200 appearance-none focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 cursor-pointer font-medium"
                     >
                       <option value="Individual">Individual</option>
+                      <option value="Wedding Host">Wedding Host</option>
+                      <option value="Birthday Host">Birthday Host</option>
+                      <option value="Celebrity">Celebrity</option>
+                      <option value="Influencer">Influencer</option>
                       <option value="Event Organizer">Event Organizer</option>
-                      <option value="Celebrity / Influencer">Celebrity / Influencer</option>
-                      <option value="Nightclub / Lounge / Bar / Pub">Nightclub / Lounge / Bar / Pub</option>
+                      <option value="Festival Organizer">Festival Organizer</option>
+                      <option value="Nightclub">Nightclub</option>
+                      <option value="Lounge">Lounge</option>
+                      <option value="Bar">Bar</option>
+                      <option value="Pub">Pub</option>
+                      <option value="Sports Organization">Sports Organization</option>
+                      <option value="Fundraiser">Fundraiser</option>
+                      <option value="Creator">Creator</option>
+                      <option value="Corporate Event">Corporate Event</option>
                     </select>
                     <ChevronDown className="absolute right-3.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
                   </div>
@@ -473,7 +562,7 @@ export default function BusinessImpact({ theme }: BusinessImpactProps) {
                 
                 <input
                   type="range"
-                  min="50"
+                  min="0"
                   max="50000"
                   step="50"
                   value={physicalAttendance}
@@ -482,7 +571,7 @@ export default function BusinessImpact({ theme }: BusinessImpactProps) {
                 />
                 
                 <div className="flex justify-between text-[8px] font-mono text-zinc-600">
-                  <span>MIN: 50</span>
+                  <span>MIN: 0</span>
                   <span>MAX: 50,000</span>
                 </div>
               </div>
@@ -591,11 +680,22 @@ export default function BusinessImpact({ theme }: BusinessImpactProps) {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left">
                   
                   {/* Physical Ticket Price */}
-                  <div>
-                    <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5 flex items-center justify-between">
-                      <span>PHS Ticket Price</span>
+                  <div className={calculatorMode === "simple" ? "sm:col-span-2" : ""}>
+                    <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1.5 flex items-center justify-between">
+                      <span className="flex items-center gap-1">
+                        <span>Physical Ticket Price</span>
+                        <HelpCircle 
+                          className="w-3.5 h-3.5 text-zinc-600 cursor-pointer hover:text-zinc-405 transition-colors"
+                          onClick={() => setActiveTooltip(activeTooltip === "phsTicket" ? null : "phsTicket")}
+                        />
+                      </span>
                       <span className="text-[9px] text-[#A78BFA] font-bold">Min: 0</span>
                     </label>
+                    {activeTooltip === "phsTicket" && (
+                      <div className="bg-zinc-900 border border-zinc-800 p-2.5 rounded-lg text-[11px] text-zinc-400 mb-2">
+                        The price per physical entry ticket to your event. Virtual entry ticket price is automatically set to 30% of this value.
+                      </div>
+                    )}
                     <div className="relative">
                       <span className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-sm text-zinc-500 font-mono font-bold">
                         {symbol}
@@ -604,291 +704,567 @@ export default function BusinessImpact({ theme }: BusinessImpactProps) {
                         type="text"
                         value={physicalTicketPrice}
                         onChange={(e) => setPhysicalTicketPrice(e.target.value.replace(/\D/g, ""))}
-                        className="w-full bg-[#14151a] border border-zinc-800 rounded-xl pl-8 pr-3 py-2.5 text-xs text-zinc-200 font-mono"
+                        className="w-full bg-[#14151a] border border-[#1e2028] focus:border-purple-500 focus:ring-1 focus:ring-purple-500 rounded-xl pl-8 pr-3 py-2.5 text-xs text-zinc-200 font-mono"
                         placeholder="0"
                       />
                     </div>
                   </div>
 
-                  {/* Expected Cash Sprays */}
-                  <div>
-                    <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">
-                      Expected Cash Sprays / Gifts
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-sm text-zinc-500 font-mono font-bold">
-                        {symbol}
-                      </span>
-                      <input
-                        type="text"
-                        value={expectedCashSprays}
-                        onChange={(e) => setExpectedCashSprays(e.target.value.replace(/\D/g, ""))}
-                        className="w-full bg-[#14151a] border border-zinc-800 rounded-xl pl-8 pr-3 py-2.5 text-xs text-zinc-200 font-mono"
-                        placeholder="Optional"
-                      />
-                    </div>
-                  </div>
+                  <AnimatePresence>
+                    {calculatorMode === "advanced" && (
+                      <>
+                        {/* Expected Cash Sprays */}
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="space-y-1.5"
+                        >
+                          <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1.5 flex items-center justify-between">
+                            <span className="flex items-center gap-1">
+                              <span>Expected Cash Sprays / Gifts</span>
+                              <HelpCircle 
+                                className="w-3.5 h-3.5 text-zinc-600 cursor-pointer hover:text-zinc-405 transition-colors"
+                                onClick={() => setActiveTooltip(activeTooltip === "phsGifts" ? null : "phsGifts")}
+                              />
+                            </span>
+                          </label>
+                          {activeTooltip === "phsGifts" && (
+                            <div className="bg-zinc-900 border border-zinc-805 p-2.5 rounded-lg text-[11px] text-zinc-400 mb-2 font-sans">
+                              The total cash sprayed or gifted by physical guests in the venue. Used to calculate dynamic spraying rates.
+                            </div>
+                          )}
+                          <div className="relative">
+                            <span className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-sm text-zinc-500 font-mono font-bold">
+                              {symbol}
+                            </span>
+                            <input
+                              type="text"
+                              value={expectedCashSprays}
+                              onChange={(e) => setExpectedCashSprays(e.target.value.replace(/\D/g, ""))}
+                              className="w-full bg-[#14151a] border border-[#1e2028] focus:border-purple-500 focus:ring-1 focus:ring-purple-500 rounded-xl pl-8 pr-3 py-2.5 text-xs text-zinc-200 font-mono"
+                              placeholder="Optional"
+                            />
+                          </div>
+                        </motion.div>
 
-                  {/* Expected Tips */}
-                  <div>
-                    <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">
-                      Expected Live Tips
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-sm text-zinc-500 font-mono font-bold">
-                        {symbol}
-                      </span>
-                      <input
-                        type="text"
-                        value={expectedTips}
-                        onChange={(e) => setExpectedTips(e.target.value.replace(/\D/g, ""))}
-                        className="w-full bg-[#14151a] border border-zinc-800 rounded-xl pl-8 pr-3 py-2.5 text-xs text-zinc-200 font-mono"
-                        placeholder="Optional"
-                      />
-                    </div>
-                  </div>
+                        {/* Expected Tips */}
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="space-y-1.5"
+                        >
+                          <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1.5 flex items-center justify-between">
+                            <span className="flex items-center gap-1">
+                              <span>Expected Live Tips</span>
+                              <HelpCircle 
+                                className="w-3.5 h-3.5 text-zinc-600 cursor-pointer hover:text-zinc-405 transition-colors"
+                                onClick={() => setActiveTooltip(activeTooltip === "phsTips" ? null : "phsTips")}
+                              />
+                            </span>
+                          </label>
+                          {activeTooltip === "phsTips" && (
+                            <div className="bg-zinc-900 border border-zinc-805 p-2.5 rounded-lg text-[11px] text-zinc-400 mb-2 font-sans">
+                              Total digital tips or direct custom gifts sent by physical guests during the physical event.
+                            </div>
+                          )}
+                          <div className="relative">
+                            <span className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-sm text-zinc-500 font-mono font-bold">
+                              {symbol}
+                            </span>
+                            <input
+                              type="text"
+                              value={expectedTips}
+                              onChange={(e) => setExpectedTips(e.target.value.replace(/\D/g, ""))}
+                              className="w-full bg-[#14151a] border border-[#1e2028] focus:border-purple-500 focus:ring-1 focus:ring-purple-500 rounded-xl pl-8 pr-3 py-2.5 text-xs text-zinc-200 font-mono"
+                              placeholder="Optional"
+                            />
+                          </div>
+                        </motion.div>
 
-                  {/* Vendor spending Sales */}
-                  <div>
-                    <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5 flex items-center justify-between">
-                      <span>Vendor spend (Foods/Drinks)</span>
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-sm text-zinc-500 font-mono font-bold">
-                        {symbol}
-                      </span>
-                      <input
-                        type="text"
-                        value={expectedVendorSales}
-                        onChange={(e) => setExpectedVendorSales(e.target.value.replace(/\D/g, ""))}
-                        className="w-full bg-[#14151a] border border-zinc-800 rounded-xl pl-8 pr-3 py-2.5 text-xs text-zinc-200 font-mono"
-                        placeholder="Optional"
-                      />
-                    </div>
-                  </div>
-
+                        {/* Vendor spending Sales */}
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="space-y-1.5"
+                        >
+                          <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1.5 flex items-center justify-between">
+                            <span className="flex items-center gap-1">
+                              <span>Vendor spend (Foods/Drinks)</span>
+                              <HelpCircle 
+                                className="w-3.5 h-3.5 text-zinc-600 cursor-pointer hover:text-zinc-405 transition-colors"
+                                onClick={() => setActiveTooltip(activeTooltip === "phsVendors" ? null : "phsVendors")}
+                              />
+                            </span>
+                          </label>
+                          {activeTooltip === "phsVendors" && (
+                            <div className="bg-zinc-905 border border-zinc-805 p-2.5 rounded-lg text-[11px] text-zinc-400 mb-2 font-sans">
+                              Total revenue generated from physical food, drinks, merchandise, and vendor venue licenses.
+                            </div>
+                          )}
+                          <div className="relative">
+                            <span className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-sm text-zinc-500 font-mono font-bold">
+                              {symbol}
+                            </span>
+                            <input
+                              type="text"
+                              value={expectedVendorSales}
+                              onChange={(e) => setExpectedVendorSales(e.target.value.replace(/\D/g, ""))}
+                              className="w-full bg-[#14151a] border border-[#1e2028] focus:border-purple-500 focus:ring-1 focus:ring-purple-500 rounded-xl pl-8 pr-3 py-2.5 text-xs text-zinc-200 font-mono"
+                              placeholder="Optional"
+                            />
+                          </div>
+                        </motion.div>
+                      </>
+                    )}
+                  </AnimatePresence>
                 </div>
 
+              </div>
+            </div>
+
+            {/* ===================== NEW VIRTUAL ENGAGEMENT REVENUE SECTION ===================== */}
+            <div className="bg-[#0b0c10]/95 border border-zinc-800/80 rounded-[24px] p-6 sm:p-8 space-y-6 shadow-2xl relative animate-fadeIn">
+              <div className="absolute top-4 right-4 flex items-center space-x-1 bg-zinc-900/60 border border-zinc-800/40 rounded-full px-2 py-1 text-[9px] text-zinc-500 font-mono tracking-wider uppercase font-semibold">
+                <span>Virtual Parameters</span>
+              </div>
+
+              <div>
+                <h3 className="font-display text-lg sm:text-xl font-extrabold text-white">
+                  Expected Virtual Audience Spending
+                </h3>
+                <p className="text-xs text-zinc-400 mt-1 font-sans">
+                  Estimate what an average virtual attendee is likely to spend during your event.
+                </p>
+              </div>
+
+              <div className="space-y-5">
+                {calculatorMode === "simple" ? (
+                  /* SIMPLE MODE: Average Virtual Gift Input */
+                  <div className="space-y-1.5 text-left">
+                    <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1 flex items-center justify-between">
+                      <span className="flex items-center gap-1">
+                        <span>Average Virtual Gift Per Attendee</span>
+                        <HelpCircle 
+                          className="w-3.5 h-3.5 text-zinc-600 cursor-pointer hover:text-zinc-400 transition-colors"
+                          onClick={() => setActiveTooltip(activeTooltip === "vrtGift" ? null : "vrtGift")}
+                        />
+                      </span>
+                    </label>
+                    {activeTooltip === "vrtGift" && (
+                      <div className="bg-zinc-900 border border-zinc-805 p-2.5 rounded-lg text-[11px] text-zinc-400 mb-2 font-sans">
+                        The average combined amount a virtual attendee is expected to spray, tip, or gift during your digital livestream.
+                      </div>
+                    )}
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-sm text-zinc-500 font-mono font-bold">
+                        {symbol}
+                      </span>
+                      <input
+                        type="text"
+                        value={avgVirtualGift}
+                        onChange={(e) => setAvgVirtualGift(e.target.value.replace(/\D/g, ""))}
+                        className="w-full bg-[#14151a] border border-[#1e2028] focus:border-purple-500 focus:ring-1 focus:ring-purple-500 rounded-xl pl-8 pr-3 py-2.5 text-xs text-zinc-200 font-mono"
+                        placeholder={pMax.gift}
+                      />
+                    </div>
+                    <p className="text-[10px] text-zinc-500 font-sans mt-1 leading-normal">
+                      Average amount a virtual attendee is expected to spray or gift during the event livestream.
+                    </p>
+                  </div>
+                ) : (
+                  /* ADVANCED MODE: 3 Separate inputs with AI Auto Estimation badges */
+                  <div className="grid grid-cols-1 gap-5 text-left">
+                    
+                    {/* FIELD 1: Average Virtual Cash Spray */}
+                    <div className="space-y-1.5">
+                      <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex flex-wrap items-center justify-between gap-1.5">
+                        <span className="flex items-center gap-1">
+                          <span>AVERAGE VIRTUAL CASH SPRAY PER ATTENDEE</span>
+                          <HelpCircle 
+                            className="w-3.5 h-3.5 text-zinc-600 cursor-pointer hover:text-zinc-400 transition-colors"
+                            onClick={() => setActiveTooltip(activeTooltip === "vrtSpray" ? null : "vrtSpray")}
+                          />
+                        </span>
+                        {isEstimatedSpray && (
+                          <span className="bg-purple-500/10 text-brand-purple border border-brand-purple/20 text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-lg flex items-center gap-1 animate-pulse select-none">
+                            <Sparkles className="w-2.5 h-2.5 text-purple-400" /> AI ESTIMATE
+                          </span>
+                        )}
+                      </label>
+                      {activeTooltip === "vrtSpray" && (
+                        <div className="bg-zinc-900 border border-zinc-850 p-2.5 rounded-lg text-[11px] text-zinc-400 mb-2 font-sans">
+                          The average amount each virtual attendee is expected to spray or gift during the event stream.
+                        </div>
+                      )}
+                      <div className="relative">
+                        <span className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-sm text-zinc-500 font-mono font-bold">
+                          {symbol}
+                        </span>
+                        <input
+                          type="text"
+                          value={avgVirtualCashSpray === "" && isEstimatedSpray ? Math.round(estimatedVirtualCashSpray).toString() : avgVirtualCashSpray}
+                          onChange={(e) => setAvgVirtualCashSpray(e.target.value.replace(/\D/g, ""))}
+                          className={`w-full bg-[#14151a] border rounded-xl pl-8 pr-3 py-2.5 text-xs font-mono transition-colors focus:outline-none focus:ring-1 focus:ring-purple-500 ${
+                            isEstimatedSpray 
+                              ? "border-purple-500/20 text-purple-300 placeholder-purple-400/50 focus:border-purple-500" 
+                              : "border-[#1e2028] text-zinc-200 focus:border-purple-500"
+                          }`}
+                          placeholder={pMax.spray}
+                        />
+                      </div>
+                      <p className="text-[10px] text-zinc-500 font-sans leading-normal">
+                        {isEstimatedSpray ? (
+                          <span className="text-purple-400/80 font-semibold">★ Estimated from Physical Event Data (30% physical spray rate)</span>
+                        ) : (
+                          <span>Average amount a virtual attendee is expected to spray or gift during the event.</span>
+                        )}
+                      </p>
+                    </div>
+
+                    {/* FIELD 2: Average Virtual Tip */}
+                    <div className="space-y-1.5">
+                      <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex flex-wrap items-center justify-between gap-1.5">
+                        <span className="flex items-center gap-1">
+                          <span>Average Virtual Tip Per Attendee</span>
+                          <HelpCircle 
+                            className="w-3.5 h-3.5 text-zinc-600 cursor-pointer hover:text-zinc-450 transition-colors"
+                            onClick={() => setActiveTooltip(activeTooltip === "vrtTip" ? null : "vrtTip")}
+                          />
+                        </span>
+                        {isEstimatedTip && (
+                          <span className="bg-purple-500/10 text-brand-purple border border-brand-purple/20 text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-lg flex items-center gap-1 animate-pulse select-none">
+                            <Sparkles className="w-2.5 h-2.5 text-purple-400" /> AI ESTIMATE
+                          </span>
+                        )}
+                      </label>
+                      {activeTooltip === "vrtTip" && (
+                        <div className="bg-zinc-900 border border-zinc-850 p-2.5 rounded-lg text-[11px] text-zinc-400 mb-2 font-sans">
+                          Average tips expected from each virtual attendee during the online stream.
+                        </div>
+                      )}
+                      <div className="relative">
+                        <span className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-sm text-zinc-500 font-mono font-bold">
+                          {symbol}
+                        </span>
+                        <input
+                          type="text"
+                          value={avgVirtualTip === "" && isEstimatedTip ? Math.round(estimatedVirtualTip).toString() : avgVirtualTip}
+                          onChange={(e) => setAvgVirtualTip(e.target.value.replace(/\D/g, ""))}
+                          className={`w-full bg-[#14151a] border rounded-xl pl-8 pr-3 py-2.5 text-xs font-mono transition-colors focus:outline-none focus:ring-1 focus:ring-purple-500 ${
+                            isEstimatedTip 
+                              ? "border-purple-500/20 text-purple-300 placeholder-purple-400/50 focus:border-purple-500" 
+                              : "border-[#1e2028] text-zinc-200 focus:border-purple-500"
+                          }`}
+                          placeholder={pMax.tip}
+                        />
+                      </div>
+                      <p className="text-[10px] text-zinc-500 font-sans leading-normal">
+                        {isEstimatedTip ? (
+                          <span className="text-purple-400/80 font-semibold">★ Estimated from Physical Event Data (30% physical tipping rate)</span>
+                        ) : (
+                          <span>Average tips expected from each virtual attendee.</span>
+                        )}
+                      </p>
+                    </div>
+
+                    {/* FIELD 3: Average Virtual Vendor Spend */}
+                    <div className="space-y-1.5">
+                      <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex flex-wrap items-center justify-between gap-1.5">
+                        <span className="flex items-center gap-1">
+                          <span>Average Virtual Vendor Spend Per Attendee</span>
+                          <HelpCircle 
+                            className="w-3.5 h-3.5 text-zinc-600 cursor-pointer hover:text-zinc-450 transition-colors"
+                            onClick={() => setActiveTooltip(activeTooltip === "vrtVendor" ? null : "vrtVendor")}
+                          />
+                        </span>
+                        {isEstimatedVendor && (
+                          <span className="bg-purple-500/10 text-brand-purple border border-brand-purple/20 text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-lg flex items-center gap-1 animate-pulse select-none">
+                            <Sparkles className="w-2.5 h-2.5 text-purple-400" /> AI ESTIMATE
+                          </span>
+                        )}
+                      </label>
+                      {activeTooltip === "vrtVendor" && (
+                        <div className="bg-zinc-900 border border-zinc-850 p-2.5 rounded-lg text-[11px] text-zinc-400 mb-2 font-sans">
+                          Average amount spent by each virtual attendee on merchandise, food, drinks, premium content or marketplace purchases.
+                        </div>
+                      )}
+                      <div className="relative">
+                        <span className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-sm text-zinc-500 font-mono font-bold">
+                          {symbol}
+                        </span>
+                        <input
+                          type="text"
+                          value={avgVirtualVendorSpend === "" && isEstimatedVendor ? Math.round(estimatedVirtualVendorSpend).toString() : avgVirtualVendorSpend}
+                          onChange={(e) => setAvgVirtualVendorSpend(e.target.value.replace(/\D/g, ""))}
+                          className={`w-full bg-[#14151a] border rounded-xl pl-8 pr-3 py-2.5 text-xs font-mono transition-colors focus:outline-none focus:ring-1 focus:ring-purple-500 ${
+                            isEstimatedVendor 
+                              ? "border-purple-500/20 text-purple-300 placeholder-purple-400/50 focus:border-purple-500" 
+                              : "border-[#1e2028] text-zinc-200 focus:border-purple-500"
+                          }`}
+                          placeholder={pMax.vendor}
+                        />
+                      </div>
+                      <p className="text-[10px] text-zinc-500 font-sans leading-normal">
+                        {isEstimatedVendor ? (
+                          <span className="text-purple-400/80 font-semibold">★ Estimated from Physical Event Data (30% physical spend rate)</span>
+                        ) : (
+                          <span>Average spent from each virtual attendee.</span>
+                        )}
+                      </p>
+                    </div>
+
+                  </div>
+                )}
               </div>
             </div>
 
           </div>
 
-          {/* ==================== RIGHT COLUMN: OUTPUTS ==================== */}
+                 {/* ==================== RIGHT COLUMN: OUTPUTS ==================== */}
           <div className="lg:col-span-6 space-y-6">
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* The Three Premium Glass Estimation Cards Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               
-              {/* Card 1: WITHOUT ONSTAEGE (BLUE STYLING) */}
-              <div className="bg-[#0b0c10]/95 border border-zinc-850 rounded-[24px] p-6 text-left shadow-xl hover:border-zinc-700 transition duration-300 relative group overflow-hidden">
-                <div className="absolute top-0 left-0 right-0 h-[3px] bg-sky-500/50" />
-                
-                <p className="text-[10px] font-extrabold text-sky-400 uppercase tracking-widest mb-1">
-                  WITHOUT ONSTAEGE
-                </p>
-                <p className="text-[9px] text-zinc-500 leading-none mb-3">Limited to venue four walls</p>
+              {/* CARD 1: WITHOUT ONSTAEGE (BLUE STYLING) - Spans 1 column */}
+              <div className="bg-[#0b0c10]/95 border border-zinc-800/80 rounded-[22px] p-5 text-left shadow-xl hover:border-sky-500/30 transition duration-300 relative overflow-hidden flex flex-col justify-between">
+                <div>
+                  <div className="absolute top-0 left-0 right-0 h-[3px] bg-sky-500/50" />
+                  <p className="text-[9px] font-extrabold text-sky-400 uppercase tracking-widest mb-0.5">
+                    WITHOUT ONSTAEGE
+                  </p>
+                  <p className="text-[9px] text-zinc-500 leading-none mb-4">Limited physical venue gate</p>
 
-                {/* Total Counter display */}
-                <h4 className="text-2xl sm:text-3xl font-display font-black tracking-tight text-white flex items-baseline space-x-0.5 leading-none mt-1">
-                  <AnimatedCounter value={totalPhysicalRevenue} prefix={symbol} />
-                </h4>
-                <p className="text-[9px] text-zinc-400 mt-1 font-mono uppercase">CAPPED PHYSICAL REVENUE</p>
+                  <h4 className={`${getBigFigureTextClass(totalPhysicalRevenue)} font-display font-black tracking-tight text-white flex items-baseline space-x-0.5 leading-none transition-all duration-300 whitespace-nowrap overflow-hidden text-ellipsis`}>
+                    <AnimatedCounter value={totalPhysicalRevenue} prefix={symbol} />
+                  </h4>
+                  <p className="text-[8px] text-zinc-400 mt-1 font-mono uppercase tracking-wider font-semibold">CAPPED REVENUE</p>
 
-                {/* Physical Breakdown details list */}
-                <div className="mt-5 space-y-2.5 text-xs border-t border-zinc-900 pt-4">
-                  <div className="flex justify-between items-center text-zinc-400">
-                    <span className="flex items-center space-x-1.5">
-                      <span className="w-1.5 h-1.5 bg-sky-500 rounded-full" />
-                      <span>Ticket Sales</span>
-                    </span>
-                    <span className="font-mono text-zinc-300 font-bold">
-                      {symbol}{physicalTicketsRevenue.toLocaleString()}
-                    </span>
-                  </div>
+                  {/* Physical Breakdown */}
+                  <div className="mt-4 space-y-2 text-[11px] border-t border-zinc-900 pt-3.5">
+                    <div className="flex justify-between items-center text-zinc-400">
+                      <span className="flex items-center space-x-1.5 mr-2">
+                        <span className="w-1.5 h-1.5 bg-sky-500 rounded-full shrink-0" />
+                        <span>Tickets</span>
+                      </span>
+                      <span className="font-mono text-zinc-300 font-bold whitespace-nowrap">
+                        {symbol}{physicalTicketsRevenue.toLocaleString()}
+                      </span>
+                    </div>
 
-                  <div className="flex justify-between items-center text-zinc-400">
-                    <span className="flex items-center space-x-1.5">
-                      <span className="w-1.5 h-1.5 bg-zinc-600 rounded-full" />
-                      <span>Cash Sprays</span>
-                    </span>
-                    <span className="font-mono text-zinc-300 font-bold">
-                      {symbol}{cashSpraysPhysical.toLocaleString()}
-                    </span>
-                  </div>
+                    <div className="flex justify-between items-center text-zinc-400">
+                      <span className="flex items-center space-x-1.5 mr-2">
+                        <span className="w-1.5 h-1.5 bg-zinc-700 rounded-full shrink-0" />
+                        <span>Sprays</span>
+                      </span>
+                      <span className="font-mono text-zinc-300 font-bold whitespace-nowrap">
+                        {symbol}{cashSpraysPhysical.toLocaleString()}
+                      </span>
+                    </div>
 
-                  <div className="flex justify-between items-center text-zinc-400">
-                    <span className="flex items-center space-x-1.5">
-                      <span className="w-1.5 h-1.5 bg-zinc-600 rounded-full" />
-                      <span>Tips / Gifts</span>
-                    </span>
-                    <span className="font-mono text-zinc-300 font-bold">
-                      {symbol}{tipsPhysical.toLocaleString()}
-                    </span>
-                  </div>
+                    <div className="flex justify-between items-center text-zinc-400">
+                      <span className="flex items-center space-x-1.5 mr-2">
+                        <span className="w-1.5 h-1.5 bg-zinc-700 rounded-full shrink-0" />
+                        <span>Tips</span>
+                      </span>
+                      <span className="font-mono text-zinc-300 font-bold whitespace-nowrap">
+                        {symbol}{tipsPhysical.toLocaleString()}
+                      </span>
+                    </div>
 
-                  <div className="flex justify-between items-center text-zinc-400">
-                    <span className="flex items-center space-x-1.5">
-                      <span className="w-1.5 h-1.5 bg-zinc-600 rounded-full" />
-                      <span>Vendor Sales</span>
-                    </span>
-                    <span className="font-mono text-zinc-200 font-bold">
-                      {symbol}{vendorSalesPhysical.toLocaleString()}
-                    </span>
+                    <div className="flex justify-between items-center text-zinc-400">
+                      <span className="flex items-center space-x-1.5 mr-2">
+                        <span className="w-1.5 h-1.5 bg-zinc-700 rounded-full shrink-0" />
+                        <span>Vendors</span>
+                      </span>
+                      <span className="font-mono text-zinc-300 font-bold whitespace-nowrap">
+                        {symbol}{vendorSalesPhysical.toLocaleString()}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                {/* Bottom capped attendance warnings banner */}
-                <div className="mt-6 bg-zinc-950/60 p-2.5 rounded-xl border border-zinc-900 flex items-center justify-between">
-                  <span className="text-[10px] text-zinc-500 font-medium font-sans">MAX STAGE ATTENDANCE:</span>
-                  <span className="text-[10px] font-bold text-sky-400 font-mono">{physicalAttendance} GUESTS</span>
+                <div className="mt-4 bg-zinc-950/60 p-2 rounded-xl border border-zinc-900/60 flex items-center justify-between text-[9px]">
+                  <span className="text-zinc-500 font-medium">GATE LIMIT:</span>
+                  <span className="font-bold text-sky-400 font-mono whitespace-nowrap">{physicalAttendance} GUESTS</span>
                 </div>
               </div>
 
-              {/* Card 2: WITH ONSTAEGE (MAGICAL PURPLE GRAPHIC GLOW) */}
-              <div className="bg-[#0b0c10]/95 border-2 border-brand-purple/25 rounded-[24px] p-6 text-left shadow-2xl hover:border-brand-purple/45 transition duration-300 relative overflow-hidden group">
-                <div className="absolute top-0 left-0 right-0 h-[3px] bg-brand-purple" />
-                <div className="absolute -right-8 -top-8 w-24 h-24 bg-brand-purple/10 rounded-full filter blur-xl group-hover:bg-brand-purple/15 transition-all" />
-
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-[10px] font-extrabold text-brand-purple uppercase tracking-widest leading-none">
+              {/* CARD 2: WITH ONSTAEGE (PURPLE STYLING) - Spans 1 column */}
+              <div className="bg-[#0b0c10]/95 border-2 border-brand-purple/20 rounded-[22px] p-5 text-left shadow-2xl hover:border-brand-purple/40 transition duration-300 relative overflow-hidden flex flex-col justify-between">
+                <div>
+                  <div className="absolute top-0 left-0 right-0 h-[3px] bg-brand-purple" />
+                  <p className="text-[9px] font-extrabold text-brand-purple uppercase tracking-widest mb-0.5">
                     WITH ONSTAEGE
                   </p>
-                  <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded-full animate-pulse">
-                    UNLEASHED
-                  </span>
+                  <p className="text-[9px] text-zinc-400 leading-none mb-4">Unlimited digital venue reach</p>
+
+                  <h4 className={`${getBigFigureTextClass(totalOnstaegeRevenue)} font-display font-black tracking-tight text-white flex items-baseline space-x-0.5 leading-none transition-all duration-300 whitespace-nowrap overflow-hidden text-ellipsis`}>
+                    <AnimatedCounter value={totalOnstaegeRevenue} prefix={symbol} />
+                  </h4>
+                  <p className="text-[8px] text-zinc-400 mt-1 font-mono uppercase tracking-wider font-semibold">MAGNIFIED REVENUE</p>
+
+                  {/* With Onstaege Breakdown */}
+                  <div className="mt-4 space-y-2 text-[11px] border-t border-zinc-900 pt-3.5">
+                    <div className="flex justify-between items-center text-zinc-400">
+                      <span className="text-zinc-500 font-medium mr-2">Physical Base:</span>
+                      <span className="font-mono text-zinc-400 whitespace-nowrap">
+                        {symbol}{totalPhysicalRevenue.toLocaleString()}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-center text-zinc-400">
+                      <span className="flex items-center space-x-1.5 mr-2">
+                        <span className="w-1.5 h-1.5 bg-[#C084FC] rounded-full shrink-0" />
+                        <span className="text-[#C084FC] font-semibold">Virtual Tickets</span>
+                      </span>
+                      <span className="font-mono text-white font-bold whitespace-nowrap">
+                        {symbol}{virtualTicketRevenue.toLocaleString()}
+                      </span>
+                    </div>
+
+                    {/* Conditional Addon breakdowns based on user criteria */}
+                    {virtualCashSprays > 0 || virtualTips > 0 || virtualVendorRevenue > 0 ? (
+                      <>
+                        {virtualCashSprays > 0 && (
+                          <div className="flex justify-between items-center text-zinc-400">
+                            <span className="flex items-center space-x-1.5 mr-2">
+                              <span className="w-1.5 h-1.5 bg-[#818CF8] rounded-full shrink-0" />
+                              <span className="text-[#818CF8]">Virtual Sprays</span>
+                            </span>
+                            <span className="font-mono text-white font-bold whitespace-nowrap">
+                              {symbol}{virtualCashSprays.toLocaleString()}
+                            </span>
+                          </div>
+                        )}
+
+                        {virtualTips > 0 && (
+                          <div className="flex justify-between items-center text-zinc-400">
+                            <span className="flex items-center space-x-1.5 mr-2">
+                              <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full shrink-0" />
+                              <span className="text-zinc-300">Virtual Tips</span>
+                            </span>
+                            <span className="font-mono text-white font-bold whitespace-nowrap">
+                              {symbol}{virtualTips.toLocaleString()}
+                            </span>
+                          </div>
+                        )}
+
+                        {virtualVendorRevenue > 0 && (
+                          <div className="flex justify-between items-center text-zinc-400">
+                            <span className="flex items-center space-x-1.5 mr-2">
+                              <span className="w-1.5 h-1.5 bg-pink-400 rounded-full shrink-0" />
+                              <span className="text-zinc-300">Virtual Vendors</span>
+                            </span>
+                            <span className="font-mono text-white font-semibold whitespace-nowrap">
+                              {symbol}{virtualVendorRevenue.toLocaleString()}
+                            </span>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      /* Displaynotice banner if virtual sprays, tips and vendor spent are zero */
+                      <div className="bg-purple-500/5 border border-purple-500/10 p-2.5 rounded-xl text-[10px] text-purple-300 font-sans text-center leading-normal mt-2">
+                        Virtual Revenue will be calculated from ticket sales only.
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <p className="text-[9px] text-zinc-400 font-sans leading-none mb-3">Infinite digital venue reach</p>
 
-                {/* Expanded Revenue total */}
-                <h4 className="text-2xl sm:text-3xl font-display font-black tracking-tight text-white flex items-baseline space-x-0.5 leading-none mt-1">
-                  <AnimatedCounter value={totalOnstaegeRevenue} prefix={symbol} />
-                </h4>
-                <p className="text-[9px] text-[#A78BFA] font-mono uppercase font-bold tracking-widest">MAGNIFIED REVENUE REACH</p>
-
-                {/* With Onstaege Detailed list */}
-                <div className="mt-5 space-y-2.5 text-xs border-t border-zinc-900 pt-4">
-                  <div className="flex justify-between items-center text-zinc-400">
-                    <span className="text-zinc-500">Physical Base Rev:</span>
-                    <span className="font-mono text-zinc-300">
-                      {symbol}{totalPhysicalRevenue.toLocaleString()}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between items-center text-zinc-400">
-                    <span className="font-semibold text-[#C084FC] flex items-center space-x-1">
-                      <span className="w-1.5 h-1.5 bg-[#C084FC] rounded-full" />
-                      <span>Virtual Tickets (30%)</span>
-                    </span>
-                    <span className="font-mono text-white font-bold">
-                      {symbol}{virtualTicketRevenue.toLocaleString()}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between items-center text-zinc-400">
-                    <span className="font-semibold text-[#818CF8] flex items-center space-x-1">
-                      <span className="w-1.5 h-1.5 bg-[#818CF8] rounded-full" />
-                      <span>Virtual Sprays</span>
-                    </span>
-                    <span className="font-mono text-white font-bold">
-                      {symbol}{virtualCashSprays.toLocaleString()}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between items-center text-zinc-400">
-                    <span className="font-semibold text-zinc-400 flex items-center space-x-1">
-                      <span className="w-1.5 h-1.5 bg-[#E9D5FF] rounded-full" />
-                      <span>Virtual Tips</span>
-                    </span>
-                    <span className="font-mono text-white font-bold">
-                      {symbol}{virtualTips.toLocaleString()}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between items-center text-zinc-400">
-                    <span className="font-semibold text-zinc-400 flex items-center space-x-1">
-                      <span className="w-1.5 h-1.5 bg-purple-300 rounded-full" />
-                      <span>Virtual Vendor Fees</span>
-                    </span>
-                    <span className="font-mono text-zinc-100 font-bold">
-                      {symbol}{virtualVendorRevenue.toLocaleString()}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="mt-6 bg-[#16122d]/60 p-2.5 rounded-xl border border-purple-500/10 flex items-center justify-between">
-                  <span className="text-[10px] text-zinc-400 font-medium">TOTAL DIGITAL GUESTS:</span>
-                  <span className="text-[10px] font-black text-brand-purple font-mono">{(physicalAttendance + virtualAttendees).toLocaleString()} REACH</span>
+                <div className="mt-4 bg-[#16122d]/60 p-2 rounded-xl border border-purple-500/10 flex items-center justify-between text-[9px]">
+                  <span className="text-zinc-400 font-medium">TOTAL GUESTS:</span>
+                  <span className="font-black text-brand-purple font-mono whitespace-nowrap">{(physicalAttendance + virtualAttendees).toLocaleString()} REACH</span>
                 </div>
               </div>
 
-            </div>
-
-            {/* Glowing additional earnings banner dashboard (IMPACT CARD) */}
-            <div className="bg-[#0b0c10]/95 border-2 border-emerald-500/25 rounded-[24px] p-6 text-left shadow-2xl relative overflow-hidden group">
-              
-              {/* Green gradient glow in corner styling */}
-              <div className="absolute right-0 bottom-0 w-32 h-32 bg-emerald-500/5 rounded-full filter blur-2xl group-hover:bg-emerald-500/10 transition-all pointer-events-none" />
-
-              <div className="flex items-start justify-between">
+              {/* CARD 3: NEW REVENUE GENERATED (EMERALD REACTION STYLING) - Spans 2 columns on medium & larger */}
+              <div className="md:col-span-2 lg:col-span-1 bg-gradient-to-br from-[#070b09] via-[#09120c] to-zinc-950 border border-emerald-500/20 rounded-[22px] p-5 text-left shadow-2xl relative overflow-hidden flex flex-col justify-between">
                 <div>
-                  <p className="text-[10px] font-extrabold text-emerald-400 uppercase tracking-widest">
-                    ADDITIONAL REVENUE
+                  <div className="absolute top-0 left-0 right-0 h-[3px] bg-emerald-500/50" />
+                  <p className="text-[9px] font-extrabold text-emerald-400 uppercase tracking-widest mb-0.5">
+                    NEW REVENUE GENERATED
                   </p>
-                  <h3 className="text-3xl sm:text-4xl md:text-5xl font-display font-black tracking-tight text-white mt-1.5 flex items-baseline">
-                    <span className="text-emerald-400 mr-1">+</span>
+                  <p className="text-[9px] text-zinc-500 leading-none mb-4">Onstaege Virtual Delta</p>
+
+                  <h3 className={`${getBigFigureTextClass(additionalRevenue, true)} font-display font-black tracking-tight text-white leading-none flex items-baseline transition-all duration-300 whitespace-nowrap overflow-hidden text-ellipsis`}>
+                    <span className="text-emerald-400 mr-0.5 font-bold">+</span>
                     <AnimatedCounter value={additionalRevenue} prefix={symbol} />
                   </h3>
+                  <p className="text-[8px] text-emerald-400/90 font-mono font-bold uppercase tracking-widest mt-1">INCREMENTAL LIFT</p>
+
+                  <div className="mt-4 space-y-2.5 text-[11px] border-t border-zinc-900 pt-3.5">
+                    <div className="flex justify-between items-center text-zinc-400">
+                      <span className="font-semibold text-emerald-400 flex items-center space-x-1 mr-2">
+                        <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full shrink-0" />
+                        <span>Percentage Lift</span>
+                      </span>
+                      <span className="font-mono text-emerald-405 font-bold text-xs whitespace-nowrap">
+                        +{percentageIncrease}%
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-center text-zinc-400">
+                      <span className="font-semibold text-emerald-400 flex items-center space-x-1 mr-2">
+                        <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full shrink-0" />
+                        <span>Total Multiplier</span>
+                      </span>
+                      <span className="font-mono text-emerald-405 font-bold text-xs whitespace-nowrap">
+                        {timesMultiple}x
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                
-                {/* Metric multiplier bubble badge based on results */}
-                <div className="bg-emerald-500/10 border border-emerald-500/35 px-3 py-1.5 rounded-2xl text-center shrink-0">
-                  <p className="text-[9px] text-zinc-400 uppercase font-mono tracking-wider">MULTIPLIER</p>
-                  <p className="text-xl font-mono text-emerald-400 font-black tracking-tight mt-0.5 leading-none">
-                    {timesMultiple}x
-                  </p>
+
+                <div className="mt-4 bg-emerald-950/20 border border-emerald-500/10 px-2.5 py-1.5 rounded-xl flex items-center justify-between text-[10px]">
+                  <span className="text-emerald-500 font-extrabold uppercase font-mono tracking-wider mr-2">ROI MAGNIFICATION</span>
+                  <span className="text-emerald-400 font-bold whitespace-nowrap">&#10022; {timesMultiple}x More Stream</span>
                 </div>
               </div>
 
-              {/* Incremental percentage markup metrics */}
-              <div className="mt-4 pt-4 border-t border-zinc-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                <p className="text-zinc-300 font-sans leading-relaxed">
-                  With Onstaege, You Could Earn <span className="text-emerald-400 font-black font-mono">+{percentageIncrease}%</span> More over standard venue gate sales.
+            </div>
+
+            {/* AI PROJECT PROJECTION MODEL / AI HIGHLIGHT CARD */}
+            <div className="bg-[#0b0c10]/95 border-2 border-purple-500/10 rounded-[24px] p-6 text-left shadow-2xl relative overflow-hidden group">
+              <div className="absolute right-0 top-0 w-32 h-32 bg-purple-500/5 rounded-full filter blur-2xl group-hover:bg-purple-500/10 transition-all pointer-events-none" />
+              <div className="absolute top-4 right-4 flex items-center space-x-1 font-mono text-[9px] text-zinc-500 select-none">
+                <Sparkles className="w-3.5 h-3.5 text-brand-purple" />
+                <span>AI Projection Insights</span>
+              </div>
+
+              <h4 className="font-display font-black text-xs text-white uppercase tracking-widest mb-3 flex items-center space-x-1.5">
+                <span>IMPACT FORECAST</span>
+              </h4>
+
+              <div className="space-y-3.5 text-xs text-zinc-300 leading-relaxed font-sans">
+                <p>
+                  With an estimated digital fan/follower base of <span className="font-bold text-white font-mono">{currentAudienceReach.toLocaleString()}</span> and an assumed <span className="font-bold text-emerald-400 font-mono">{conversionRate}%</span> conversion rate, your virtual venue ticket is projected to attract <span className="font-bold text-emerald-400 font-mono">{virtualAttendees.toLocaleString()}</span> attendees.
                 </p>
-                
-                <span className="shrink-0 text-[10px] font-extrabold text-emerald-400 uppercase tracking-widest bg-emerald-950/40 border border-emerald-500/20 px-2.5 py-1 rounded-full">
-                  ⚡ ROI MAXIMIZATION
-                </span>
+                <p>
+                  These digital attendees bypass bricks-and-mortar physical limit caps (<span className="text-sky-400 font-bold font-mono">{physicalAttendance} guests</span>) entirely, generating an additional <span className="font-black text-brand-purple font-mono">{symbol}{virtualTicketRevenue.toLocaleString()}</span> in pure ticket sales.
+                </p>
+                {virtualCashSprays > 0 || virtualTips > 0 || virtualVendorRevenue > 0 ? (
+                  <p className="text-zinc-400">
+                    Furthermore, customized interactive streams trigger active monetization, pulling a combined <span className="font-bold text-white font-mono">{symbol}{(virtualCashSprays + virtualTips + virtualVendorRevenue).toLocaleString()}</span> in digital virtual cash sprays showering, live direct tipping, and collaborative vendor marketplace sales.
+                  </p>
+                ) : (
+                  <p className="text-zinc-500 italic">
+                    Configure virtual sprays, tips or vender parameters in the left configuration deck to model full interactive stream monetization streams.
+                  </p>
+                )}
               </div>
             </div>
 
-            {/* IMPACT INSIGHT CONTEXT BLOCK (AUTO GENERATED SUMMARY) */}
-            <div className="bg-[#14151a] border border-zinc-800 rounded-2xl p-5 text-left text-xs text-zinc-300 space-y-2.5 relative">
-              <span className="absolute right-3.5 top-3.5 text-[9px] text-zinc-500 font-mono flex items-center space-x-1 select-none">
-                <Info className="w-3 h-3 text-zinc-500" />
-                <span>AI Projection Model</span>
-              </span>
-              
-              <h5 className="font-extrabold text-[10px] text-zinc-400 uppercase tracking-widest">
-                Growth projection insights
-              </h5>
-              
-              <p className="leading-relaxed text-zinc-300 font-sans">
-                With a follower/fans base of <span className="font-bold text-white font-mono">{currentAudienceReach.toLocaleString()}</span> and a conservative <span className="font-bold text-emerald-400 font-mono">{conversionRate}%</span> virtual attendance rate, your event could attract an additional <span className="font-bold text-white font-mono">{virtualAttendees.toLocaleString()}</span> attendees without increasing the physical venue capacity.
-              </p>
-              
-              <p className="leading-relaxed text-zinc-400 font-medium">
-                Those virtual stream attendees are projected to generate <span className="font-semibold text-white font-mono">{symbol}{totalVirtualRevenue.toLocaleString()}</span> in additional ticket sales, digital cash spraying showers, and vendor sales.
-              </p>
-            </div>
-
-            {/* VISUALIZATION CHART: DUAL BENT BAR GRAPH */}
-            <div className="bg-[#0b0c10]/95 border border-zinc-850 rounded-[24px] p-6 text-left shadow-xl space-y-4">
-              <h5 className="text-[10px] font-extrabold text-zinc-400 uppercase tracking-widest font-mono">
+            {/* VISUAL CHART INTERACTIVE SECTION: DUAL BENT PROGRESS COMPARISON */}
+            <div className="bg-[#0b0c10]/95 border border-zinc-800/80 rounded-[24px] p-6 text-left shadow-xl space-y-5">
+              <h5 className="text-[10px] font-extrabold text-zinc-500 uppercase tracking-widest font-mono">
                 Visual Attendance & Revenue Climb Comparison
               </h5>
 
               <div className="space-y-4 pt-1">
-                {/* Physical bar item details */}
+                {/* Physical Base bar */}
                 <div className="space-y-1.5">
                   <div className="flex justify-between text-xs">
                     <span className="text-zinc-400 font-sans flex items-center space-x-1.5">
@@ -904,8 +1280,7 @@ export default function BusinessImpact({ theme }: BusinessImpactProps) {
                       className="h-full bg-gradient-to-r from-sky-600 to-sky-400 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.3)]" 
                       initial={{ width: "3%" }}
                       animate={{ 
-                        // Compute ratio comparing physical to grand total, let's keep it visible at least 8%
-                        width: `${Math.max(8, Math.min(100, (physicalAttendance / (physicalAttendance + virtualAttendees)) * 100))}%`
+                        width: `${Math.max(8, Math.min(100, (physicalAttendance + virtualAttendees) > 0 ? (physicalAttendance / (physicalAttendance + virtualAttendees)) * 100 : 0))}%`
                       }}
                       transition={{ type: "spring", stiffness: 60 }}
                     />
@@ -923,32 +1298,32 @@ export default function BusinessImpact({ theme }: BusinessImpactProps) {
                       {(physicalAttendance + virtualAttendees).toLocaleString()} global reach
                     </span>
                   </div>
-                  <div className="w-full h-4 bg-zinc-950 rounded-full overflow-hidden p-[2px]">
+                  <div className="w-full h-4 bg-zinc-100/5 rounded-full overflow-hidden p-[2px]">
                     <motion.div 
-                      className="h-full bg-gradient-to-r from-brand-purple to-pink-500 rounded-full shadow-[0_0_12px_rgba(124,58,237,0.55)]" 
+                      className="h-full bg-gradient-to-r from-brand-purple via-pink-500 to-purple-600 rounded-full shadow-[0_0_12px_rgba(124,58,237,0.55)] animate-pulse" 
                       initial={{ width: "12%" }}
-                      animate={{ width: "100%" }} // Combined is the absolute standard maximum bar size scale
+                      animate={{ width: "100%" }} 
                       transition={{ type: "spring", stiffness: 60 }}
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Elegant Revenue Line Gradient path SVG display */}
-              <div className="bg-zinc-950 rounded-xl p-3.5 border border-zinc-900 relative h-28 overflow-hidden flex flex-col justify-between">
+              {/* Trajectory trajectory line illustration */}
+              <div className="bg-zinc-950 rounded-xl p-3.5 border border-zinc-900/60 relative h-28 overflow-hidden flex flex-col justify-between">
                 <div className="absolute top-2.5 left-3 text-[8px] text-zinc-500 font-mono uppercase font-bold tracking-widest flex items-center space-x-1 select-none">
                   <TrendingUp className="w-3 h-3 text-emerald-400" />
                   <span>Revenue trajectory curve</span>
                 </div>
 
-                <div className="absolute right-3.5 top-2 text-[10px] text-emerald-400 font-mono font-bold uppercase select-none flex items-center space-x-1">
+                <div className="absolute right-3.5 top-2 text-[8px] text-emerald-400 font-mono font-bold uppercase select-none flex items-center space-x-1">
                   <span>Hypergrowth curve climb</span>
                 </div>
 
-                {/* SVG Curve chart displaying extreme rise from physical base up to digital virtual stream ceiling */}
+                {/* SVG Curve chart displaying rise from physical base up to digital virtual stream ceiling */}
                 <svg className="w-full h-16 absolute bottom-0 left-0 z-0 pointer-events-none" viewBox="0 0 100 30" preserveAspectRatio="none">
                   <defs>
-                    <linearGradient id="chart-rev-area" x1="0" y1="0" x2="0" y2="1">
+                    <linearGradient id="chart-rev-area-v" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#7c3aed" stopOpacity="0.45" />
                       <stop offset="100%" stopColor="#7c3aed" stopOpacity="0" />
                     </linearGradient>
@@ -958,16 +1333,16 @@ export default function BusinessImpact({ theme }: BusinessImpactProps) {
                   <line x1="0" y1="22" x2="100" y2="22" stroke="#4b5563" strokeWidth="0.5" strokeDasharray="2" />
                   
                   {/* Curved revenue line rising up to ceiling */}
-                  <path d="M 0,22 Q 35,21 60,11 T 100,2" fill="none" stroke="url(#nav-spotlight-beam-left)" strokeWidth="1.5" />
-                  <path d="M 0,22 Q 35,21 60,11 T 100,2 L 100,30 L 0,30 Z" fill="url(#chart-rev-area)" />
+                  <path d="M 0,22 Q 35,21 60,11 T 100,2" fill="none" stroke="#7c3aed" strokeWidth="1.5" />
+                  <path d="M 0,22 Q 35,21 60,11 T 100,2 L 100,30 L 0,30 Z" fill="url(#chart-rev-area-v)" />
                 </svg>
 
                 <div className="flex justify-between items-end relative z-10 w-full pt-1">
                   <div className="text-left font-sans text-[9px] text-zinc-500 font-semibold leading-none self-end pb-1 pl-1">
-                    Base: {symbol}{totalPhysicalRevenue.toLocaleString()}
+                    Base Physical: {symbol}{totalPhysicalRevenue.toLocaleString()}
                   </div>
-                  <div className="text-right font-mono text-xs text-emerald-400 font-black bg-zinc-900 border border-emerald-500/20 px-2 py-1 rounded-md mb-1 mr-1">
-                    Max: {symbol}{totalOnstaegeRevenue.toLocaleString()}
+                  <div className="text-right font-mono text-xs text-emerald-400 font-black bg-[#0d120e] border border-emerald-500/20 px-2 py-1 rounded-md mb-1 mr-1">
+                    Max Stream: {symbol}{totalOnstaegeRevenue.toLocaleString()}
                   </div>
                 </div>
               </div>
@@ -978,23 +1353,23 @@ export default function BusinessImpact({ theme }: BusinessImpactProps) {
         </div>
 
         {/* ==================== BOTTOM: CALL TO ACTION SECTION ==================== */}
-        <div className="mt-20 max-w-4xl mx-auto text-center border border-zinc-805/45 dark:border-white/5 rounded-[24px] p-8 sm:p-12 bg-gradient-to-b from-[#0c0c0f] to-zinc-950 relative overflow-hidden shadow-2xl">
+        <div className="mt-20 max-w-4xl mx-auto text-center border border-zinc-800/80 dark:border-white/5 rounded-[24px] p-8 sm:p-12 bg-gradient-to-b from-[#0b0c10]/95 to-[#121319] relative overflow-hidden shadow-2xl">
           <div className="absolute top-[20%] left-[20%] w-48 h-48 bg-brand-purple/10 rounded-full filter blur-[50px] pointer-events-none" />
-          <div className="absolute bottom-[-10%] right-[10%] w-60 h-60 bg-indigo-500/10 rounded-full filter blur-[70px] pointer-events-none" />
+          <div className="absolute bottom-[-10%] right-[10%] w-60 h-60 bg-indigo-505/10 rounded-full filter blur-[70px] pointer-events-none" />
 
           <div className="relative z-10 max-w-2xl mx-auto space-y-6">
-            <h3 className="font-display text-3xl sm:text-4xl font-extrabold tracking-tight text-white leading-tight">
+            <h3 className="font-display text-2xl sm:text-3xl font-extrabold tracking-tight text-white leading-tight">
               Ready to Make the World Your Event Venue?
             </h3>
             
-            <p className="text-zinc-400 text-sm sm:text-base max-w-lg mx-auto font-sans leading-relaxed">
+            <p className="text-zinc-400 text-xs sm:text-sm max-w-lg mx-auto font-sans leading-relaxed">
               Don't limit your ticket sales, virtual cash sprays, and brand sponsorships to a single brick-and-mortar room. Broadcast with Onstaege.
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 pt-3">
               <a
                 href="#contact"
-                className="w-full sm:w-auto text-center bg-zinc-900 border border-zinc-800 hover:border-zinc-700 font-semibold text-zinc-200 text-xs sm:text-sm px-8 py-3.5 rounded-full cursor-pointer transition shadow-md active:scale-95 duration-200"
+                className="w-full sm:w-auto text-center bg-brand-purple hover:bg-purple-600 font-semibold text-white text-xs px-8 py-3.5 rounded-full cursor-pointer transition shadow-md active:scale-95 duration-200"
               >
                 Request Custom Demo
               </a>

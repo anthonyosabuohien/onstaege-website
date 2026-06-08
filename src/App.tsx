@@ -15,25 +15,13 @@ import Footer from "./components/Footer";
 import AboutPage from "./components/AboutPage";
 
 export default function App() {
-  const [theme, setTheme] = useState<Theme>(() => {
-    // Check local storage or default to dark
-    const stored = localStorage.getItem("onstaege-theme");
-    return (stored as Theme) || "dark";
-  });
+  const theme: Theme = "dark";
 
   const [currentPage, setCurrentPage] = useState<"home" | "about">(() => {
     const path = window.location.pathname;
     const hash = window.location.hash;
     return (path === "/about" || hash === "#about" || hash === "#/about") ? "about" : "home";
   });
-
-  const toggleTheme = () => {
-    setTheme((prev) => {
-      const next = prev === "dark" ? "light" : "dark";
-      localStorage.setItem("onstaege-theme", next);
-      return next;
-    });
-  };
 
   const navigateTo = (page: "home" | "about") => {
     setCurrentPage(page);
@@ -65,12 +53,8 @@ export default function App() {
   // Keep the document element classes synced up
   useEffect(() => {
     const root = window.document.documentElement;
-    if (theme === "dark") {
-      root.classList.add("dark");
-    } else {
-      root.classList.remove("dark");
-    }
-  }, [theme]);
+    root.classList.add("dark");
+  }, []);
 
   // Handle direct scrolling to specific anchor IDs safely
   const scrollToSection = (id: string) => {
@@ -100,7 +84,6 @@ export default function App() {
       {/* Synchronized Transparent became Frosted Glass Navigation Bar */}
       <Navbar 
         theme={theme} 
-        toggleTheme={toggleTheme} 
         currentPage={currentPage} 
         onPageChange={navigateTo} 
       />

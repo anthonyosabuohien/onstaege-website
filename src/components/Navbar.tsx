@@ -1,15 +1,14 @@
 import React, { useState, useEffect } from "react";
-import { Sun, Moon, Menu, X, Sparkles } from "lucide-react";
+import { Menu, X, Sparkles } from "lucide-react";
 import { Theme } from "../types";
 
 interface NavbarProps {
   theme: Theme;
-  toggleTheme: () => void;
   currentPage?: "home" | "about";
   onPageChange?: (page: "home" | "about") => void;
 }
 
-export default function Navbar({ theme, toggleTheme, currentPage = "home", onPageChange }: NavbarProps) {
+export default function Navbar({ theme, currentPage = "home", onPageChange }: NavbarProps) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -148,26 +147,8 @@ export default function Navbar({ theme, toggleTheme, currentPage = "home", onPag
           })}
         </div>
 
-        {/* Right Buttons + Theme Toggle (Desktop) */}
+        {/* Right Buttons Only (Desktop) */}
         <div className="hidden md:flex items-center space-x-4">
-          {/* Theme Toggle Button */}
-          <button
-            onClick={toggleTheme}
-            className={`p-2.5 rounded-xl transition-all duration-300 relative group overflow-hidden ${
-              theme === "dark"
-                ? "bg-zinc-900 border border-white/5 text-amber-400 hover:bg-zinc-850 hover:text-amber-300"
-                : "bg-zinc-100 border border-black/5 text-purple-600 hover:bg-zinc-200"
-            }`}
-            aria-label="Toggle Theme"
-          >
-            {theme === "dark" ? (
-              <Sun className="w-4 h-4 transition-transform group-hover:rotate-45" />
-            ) : (
-              <Moon className="w-4 h-4 transition-transform group-hover:-rotate-12" />
-            )}
-            <span className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></span>
-          </button>
-
           <a
             href="#contact"
             className="px-4 py-2 rounded-xl font-sans font-semibold text-xs bg-gradient-to-r from-brand-blue to-brand-purple text-white shadow-lg shadow-brand-purple/20 hover:shadow-brand-purple/40 hover:scale-[1.02] transition-all duration-300"
@@ -178,15 +159,6 @@ export default function Navbar({ theme, toggleTheme, currentPage = "home", onPag
 
         {/* Mobile Hamburger Toggle */}
         <div className="flex md:hidden items-center space-x-3">
-          <button
-            onClick={toggleTheme}
-            className={`p-2 rounded-xl ${
-              theme === "dark" ? "text-amber-400" : "text-purple-600"
-            }`}
-          >
-            {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-          </button>
-
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className={`p-2 rounded-xl ${

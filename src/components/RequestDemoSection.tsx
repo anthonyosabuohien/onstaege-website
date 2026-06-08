@@ -41,7 +41,7 @@ const formSchema = z.object({
     .transform((val) => val.trim())
     .optional()
     .or(z.literal("")),
-  businessType: z.string().min(1, "Please select a business type"),
+  businessType: z.string().optional().or(z.literal("")),
   email: z
     .string()
     .min(1, "Email address is required")
@@ -66,7 +66,13 @@ const formSchema = z.object({
     .transform((val) => val.trim())
     .optional()
     .or(z.literal("")),
-  preferredDemo: z.string().min(1, "Please select a preferred demo type"),
+  preferredDemo: z.string().optional().or(z.literal("")),
+  role: z
+    .string()
+    .max(100, "Role cannot exceed 100 characters")
+    .transform((val) => val.trim())
+    .optional()
+    .or(z.literal("")),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -81,7 +87,8 @@ interface CapturedSubmission {
   businessType: string;
   preferredDemo: string;
   message: string;
-  formType: "demo" | "waitlist";
+  formType: string;
+  role?: string;
   status: string;
   syncState: "synced" | "local_only" | "failed";
   analytics: ClientAnalytics;
@@ -89,10 +96,13 @@ interface CapturedSubmission {
 
 export default function RequestDemoSection({ theme }: DemoProps) {
   // Configured default sheets endpoint
-  const appsScriptUrl = (import.meta as any).env?.VITE_APPS_SCRIPT_URL || "";
+  const envUrl = (import.meta as any).env?.VITE_APPS_SCRIPT_URL;
+  const appsScriptUrl = (envUrl && envUrl.indexOf("your_apps_script") === -1) 
+    ? envUrl 
+    : "https://script.google.com/macros/s/AKfycbxzFkeJ7SdqANgQ_LNN73KZxytrj054bsMWKy6YAS9xhb5EclXynz1giat02JogBHw/exec";
 
   // State managers
-  const [successMode, setSuccessMode] = useState<"demo" | "waitlist">("demo");
+  const [selectedFormType, setSelectedFormType] = useState<"Request Demo" | "Waitlist" | "Contact Us" | "Partner Application">("Request Demo");
   const [isSuccess, setIsSuccess] = useState(false);
   const [lastSubmittedId, setLastSubmittedId] = useState("");
   const [toast, setToast] = useState<{ message: string; type: "error" | "success" | "info" } | null>(null);
@@ -137,6 +147,7 @@ export default function RequestDemoSection({ theme }: DemoProps) {
       phone: "",
       message: "",
       preferredDemo: "virtual",
+      role: "",
     },
   });
 
@@ -144,17 +155,21 @@ export default function RequestDemoSection({ theme }: DemoProps) {
 
   // Multi-action core form submission dispatcher
   const onSubmit = async (values: FormValues) => {
+    console.log("Onstaege form submission triggered. Form Type selected:", selectedFormType);
+    console.log("Raw form values received:", values);
+
     // 1. Double-Submit and duplicate local-spam check
     const recentSpam = localSubmissions.find(
       (sub) => 
         sub.email.toLowerCase() === values.email.toLowerCase() && 
-        sub.formType === successMode &&
+        sub.formType === selectedFormType &&
         (new Date().getTime() - new Date(sub.timestamp).getTime()) < 60 * 1000
     );
 
     if (recentSpam) {
+      console.warn("Spam filter intercepted submit for email:", values.email);
       setToast({
-        message: "Duplicate spam filter active. You already submitted this email in the last 60 seconds.",
+        message: "Duplicate submission. Please wait 60 seconds before submitting again.",
         type: "error",
       });
       return;
@@ -163,54 +178,104 @@ export default function RequestDemoSection({ theme }: DemoProps) {
     try {
       // 2. Capture client-side analytics parameters asynchronously
       const analyticsPayload = await captureAnalytics();
+      console.log("Analytics data captured:", analyticsPayload);
 
       // 3. Construct unique tracking parameters
-      const generatedId = `REQ-${successMode === 'waitlist' ? 'WL' : 'DM'}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+      const formCode = 
+        selectedFormType === "Waitlist" ? "WL" : 
+        selectedFormType === "Request Demo" ? "DM" : 
+        selectedFormType === "Contact Us" ? "CT" : "PT";
+      
+      const generatedId = `REQ-${formCode}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
 
-      // Assemble complete payload
+      // Assemble payload matching user requirements and Apps Script expectations
       const webhookPayload = {
-        ...values,
-        formType: successMode,
+        name: values.name,
+        email: values.email,
+        phone: values.phone || "",
+        company: values.company || "",
+        role: values.role || "",
+        message: values.message || "",
+        businessType: values.businessType || "",
+        preferredDemo: values.preferredDemo || "",
+        formType: selectedFormType,
         analytics: analyticsPayload,
       };
 
-      let syncState: "synced" | "local_only" | "failed" = "local_only";
+      console.log("Prepared Webhook Payload:", JSON.stringify(webhookPayload, null, 2));
 
-      // 4. API Request stream
+      let syncState: "synced" | "local_only" | "failed" = "local_only";
+      let isSubmissionSuccessful = false;
+
+      // 4. API Request stream using CORS-compatible POST requests via Fetch API
       if (appsScriptUrl) {
+        console.log(`Sending CORS-compatible request to Apps Script Web App: ${appsScriptUrl}`);
         try {
+          // Send data as JSON with text/plain to avoid preflight options check blockages
           const response = await fetch(appsScriptUrl, {
             method: "POST",
-            mode: "no-cors", // Google App Script expects redirect handling, no-cors ensures safe submission in SPAs
             headers: {
-              "Content-Type": "application/json",
+              "Content-Type": "text/plain;charset=utf-8",
             },
             body: JSON.stringify(webhookPayload),
           });
 
-          // Even in no-cors, any completion counts as safe delivery to Apps Script serverless buffer
+          console.log("Apps Script Web App received response status:", response.status);
+          const responseText = await response.text();
+          console.log("Response text payload:", responseText);
+
           syncState = "synced";
+          isSubmissionSuccessful = true;
           setToast({
-            message: successMode === "waitlist" ? "Waitlist Successfully Joined!" : "Request Sent Successfully!",
+            message: selectedFormType === "Waitlist" 
+              ? "Waitlist Successfully Joined!" 
+              : selectedFormType === "Request Demo"
+                ? "Request Sent Successfully!"
+                : selectedFormType === "Contact Us"
+                  ? "Message Sent Successfully!"
+                  : "Partner Application Submitted!",
             type: "success",
           });
         } catch (xhrError) {
-          console.error("Google Sheets API stream error:", xhrError);
-          syncState = "failed";
-          setToast({
-            message: "Cloud sync failed. Your request has been backed up locally.",
-            type: "error",
-          });
+          console.warn("Direct POST encountered fetch error, attempting fallback:", xhrError);
+          try {
+            // CORS fallback if necessary, though text/plain is fully secure & simple
+            await fetch(appsScriptUrl, {
+              method: "POST",
+              mode: "no-cors",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(webhookPayload),
+            });
+            console.log("Fallback no-cors submission successful.");
+            syncState = "synced";
+            isSubmissionSuccessful = true;
+            setToast({
+              message: selectedFormType === "Waitlist" 
+                ? "Waitlist Successfully Joined!" 
+                : "Form Submitted Successfully!",
+              type: "success",
+            });
+          } catch (fallbackError) {
+            console.error("Critical Google Sheets API sync error:", fallbackError);
+            syncState = "failed";
+            setToast({
+              message: "Cloud sync failed. Your request has been backed up locally.",
+              type: "error",
+            });
+          }
         }
       } else {
-        // No environment endpoint configured, logging simulated success
+        console.warn("No appsScriptUrl configured. Simulating successful form submission.");
+        isSubmissionSuccessful = true;
         setToast({
-          message: `Simulated: ${successMode === "waitlist" ? "Waitlist joined" : "Request sent"} successfully!`,
+          message: `Simulated: ${selectedFormType} submitted successfully!`,
           type: "info",
         });
       }
 
-      // 5. Append locally for testing visual feedbacks and durability
+      // 5. Append locally for visual testing feedbacks and durability
       const newRecord: CapturedSubmission = {
         id: generatedId,
         timestamp: new Date().toISOString(),
@@ -218,10 +283,11 @@ export default function RequestDemoSection({ theme }: DemoProps) {
         email: values.email,
         phone: values.phone || "",
         company: values.company || "",
-        businessType: values.businessType,
-        preferredDemo: values.preferredDemo,
+        businessType: values.businessType || "",
+        preferredDemo: values.preferredDemo || "",
         message: values.message || "",
-        formType: successMode,
+        formType: selectedFormType,
+        role: values.role || "",
         status: "NEW",
         syncState,
         analytics: analyticsPayload,
@@ -233,6 +299,12 @@ export default function RequestDemoSection({ theme }: DemoProps) {
 
       setLastSubmittedId(generatedId);
       setIsSuccess(true);
+      
+      // Reset the form fields after successful submission
+      if (isSubmissionSuccessful) {
+        console.log("Resetting form fields after successful transmission.");
+        reset();
+      }
     } catch (genericError) {
       console.error("Critical submission flow trigger error:", genericError);
       setToast({
@@ -326,16 +398,30 @@ export default function RequestDemoSection({ theme }: DemoProps) {
 
                 <div className="space-y-3 max-w-xl">
                   <h3 className={`font-display text-2.5xl sm:text-3.5xl font-black ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
-                    {successMode === "waitlist" ? "✅ Waitlist Successfully Joined" : "✅ Request Sent Successfully"}
+                    {selectedFormType === "Waitlist" 
+                      ? "✅ Waitlist Successfully Joined" 
+                      : selectedFormType === "Request Demo"
+                        ? "✅ Request Sent Successfully"
+                        : selectedFormType === "Contact Us"
+                          ? "✅ Message Sent Successfully"
+                          : "✅ Application Submitted Successfully"}
                   </h3>
                   <p className={`font-sans text-sm leading-relaxed ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-650'}`}>
-                    {successMode === "waitlist" ? (
+                    {selectedFormType === "Waitlist" ? (
                       <>
                         We have recorded your credentials. You have been placed on our priority VIP queue. We'll secure your slot and contact you shortly.
                       </>
-                    ) : (
+                    ) : selectedFormType === "Request Demo" ? (
                       <>
                         We've received your request and our team will contact you shortly to coordinate an immersive stream simulation.
+                      </>
+                    ) : selectedFormType === "Contact Us" ? (
+                      <>
+                        Thank you for contacting us. Your message has been received, and our representative will respond within 24 hours.
+                      </>
+                    ) : (
+                      <>
+                        Thank you for your partner application. Our strategic partnership team will review your proposal and get in touch with you.
                       </>
                     )}
                   </p>
@@ -373,20 +459,56 @@ export default function RequestDemoSection({ theme }: DemoProps) {
                 exit={{ opacity: 0 }}
               >
                 {/* Header Description Title */}
-                <div className="text-center max-w-2xl mx-auto mb-10 space-y-3">
-                  <h2 className={`font-display text-3xl sm:text-4xl font-black tracking-tight ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
-                    SEE ONSTAEGE IN ACTION
+                <div className="text-center max-w-2xl mx-auto mb-8 space-y-3">
+                  <h2 className={`font-display text-3xl sm:text-4xl font-black tracking-tight uppercase ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
+                    {selectedFormType === "Request Demo" 
+                      ? "SEE ONSTAEGE IN ACTION" 
+                      : selectedFormType === "Waitlist" 
+                        ? "JOIN OUR EXCLUSIVE WAITLIST" 
+                        : selectedFormType === "Contact Us" 
+                          ? "GET IN TOUCH WITH US" 
+                          : "BECOME AN ONSTAEGE PARTNER"}
                   </h2>
                   <p className={`font-sans text-xs sm:text-sm leading-relaxed ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-650'}`}>
-                    Fill in your credentials to schedule a 15-minute live stream simulation or secure a priority slot on our platform waitlist.
+                    {selectedFormType === "Request Demo" 
+                      ? "Fill in your credentials to schedule a 15-minute live stream simulation with our lead concierges." 
+                      : selectedFormType === "Waitlist" 
+                        ? "Register to secure priority VIP access. We will notify you immediately once your slots unlock." 
+                        : selectedFormType === "Contact Us" 
+                          ? "Have some custom questions? Submit this form and we'll reply to your address within 24 hours." 
+                          : "Submit a partner proposal to coordinate integrations, custom venues, and strategic sponsorships."}
                   </p>
+                </div>
+
+                {/* Highly polished segmented bar for form types */}
+                <div className="flex flex-wrap items-center justify-center p-1 sm:p-1.5 rounded-2xl bg-zinc-900/40 dark:bg-zinc-950/40 border border-white/5 gap-1 mb-8 max-w-lg mx-auto">
+                  {(["Request Demo", "Waitlist", "Contact Us", "Partner Application"] as const).map((type) => {
+                    const isActive = selectedFormType === type;
+                    return (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => {
+                          setSelectedFormType(type);
+                          console.log("Switched active form type tab to:", type);
+                        }}
+                        className={`px-3 sm:px-4 py-2 rounded-xl text-[10px] sm:text-xs font-bold tracking-wider uppercase transition-all duration-300 cursor-pointer ${
+                          isActive
+                            ? "bg-brand-purple text-white shadow-md shadow-brand-purple/20"
+                            : "text-zinc-400 hover:text-zinc-200 hover:bg-white/5"
+                        }`}
+                      >
+                        {type}
+                      </button>
+                    );
+                  })}
                 </div>
 
                 {/* Form Field Matrix */}
                 <form 
                   onSubmit={(e) => {
-                    // Pre-submission click intercepts to verify waitlist/demo mode setting
                     e.preventDefault();
+                    handleSubmit(onSubmit)();
                   }} 
                   className="space-y-6 text-left"
                 >
@@ -425,55 +547,6 @@ export default function RequestDemoSection({ theme }: DemoProps) {
                         )}
                       </div>
 
-                      {/* Company name element */}
-                      <div className="space-y-1.5">
-                        <label className={`text-[10px] font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                          Company / Venue Name
-                        </label>
-                        <input
-                          {...register("company")}
-                          type="text"
-                          placeholder="e.g. Grand Plaza Lounge"
-                          className={`w-full px-4 py-3 rounded-xl border text-sm font-sans focus:outline-none focus:ring-2 focus:ring-brand-blue transition-all ${
-                            errors.company
-                              ? "border-rose-500/50 focus:ring-rose-500"
-                              : theme === "dark"
-                                ? "bg-[#090909]/70 border-white/5 text-white"
-                                : "bg-zinc-50 border-zinc-200 text-zinc-900"
-                          }`}
-                        />
-                        {errors.company && (
-                          <p className="text-[11px] font-semibold text-rose-400 font-sans flex items-center gap-1 mt-0.5">
-                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                            <span>{errors.company.message}</span>
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                      
-                      {/* Business Type Selector dropdown */}
-                      <div className="space-y-1.5">
-                        <label className={`text-[10px] font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                          Business Type
-                        </label>
-                        <select
-                          {...register("businessType")}
-                          className={`w-full px-4 py-3 rounded-xl border text-sm font-sans focus:outline-none focus:ring-2 focus:ring-brand-blue transition-all ${
-                            theme === "dark"
-                              ? "bg-[#0b0b0b] border-white/5 text-white"
-                              : "bg-zinc-50 border-zinc-200 text-zinc-900"
-                          }`}
-                        >
-                          <option value="agency">Event Organizer / Agency</option>
-                          <option value="wedding">Wedding Coordinator</option>
-                          <option value="nightlife">Nightclub / Entertainment Bar</option>
-                          <option value="sports">Athletic Arena / Stadium Group</option>
-                          <option value="individual">Independent Content Creator</option>
-                        </select>
-                      </div>
-
                       {/* Explicit Email verified address */}
                       <div className="space-y-1.5">
                         <label className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'}`}>
@@ -489,7 +562,7 @@ export default function RequestDemoSection({ theme }: DemoProps) {
                               : theme === "dark"
                                 ? "bg-[#090909]/70 border-white/5 text-white"
                                 : "bg-zinc-50 border-zinc-200 text-zinc-900"
-                          }`}
+                            }`}
                         />
                         {errors.email && (
                           <motion.p 
@@ -535,7 +608,103 @@ export default function RequestDemoSection({ theme }: DemoProps) {
                         )}
                       </div>
 
-                      {/* Demo Type choices */}
+                      {/* Company name element */}
+                      {selectedFormType !== "Contact Us" ? (
+                        <div className="space-y-1.5">
+                          <label className={`text-[10px] font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                            Company / Venue Name
+                          </label>
+                          <input
+                            {...register("company")}
+                            type="text"
+                            placeholder="e.g. Grand Plaza Lounge"
+                            className={`w-full px-4 py-3 rounded-xl border text-sm font-sans focus:outline-none focus:ring-2 focus:ring-brand-blue transition-all ${
+                              errors.company
+                                ? "border-rose-500/50 focus:ring-rose-500"
+                                : theme === "dark"
+                                  ? "bg-[#090909]/70 border-white/5 text-white"
+                                  : "bg-zinc-50 border-zinc-200 text-zinc-900"
+                            }`}
+                          />
+                          {errors.company && (
+                            <p className="text-[11px] font-semibold text-rose-400 font-sans flex items-center gap-1 mt-0.5">
+                              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                              <span>{errors.company.message}</span>
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="space-y-1 rounded-xl bg-[#090909]/30 dark:bg-zinc-900/20 border border-white/5 p-3.5 text-[11px] font-mono text-zinc-400 flex flex-col justify-center">
+                          <p className="font-bold text-brand-purple flex items-center gap-1">
+                            <Sparkles className="w-3.5 h-3.5 text-brand-purple" /> Dynamic Direct Route Active
+                          </p>
+                          <p className="mt-1 opacity-75 leading-normal">Your custom inquiries are routed directly to our concierge task board.</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Role & Business Type conditional row */}
+                    {selectedFormType !== "Contact Us" && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        {/* Role block */}
+                        <div className="space-y-1.5">
+                          <label className={`text-[10px] font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                            Your Role / Professional Title
+                          </label>
+                          <input
+                            {...register("role")}
+                            type="text"
+                            placeholder="e.g. Founder, CEO, Coordinator"
+                            className={`w-full px-4 py-3 rounded-xl border text-sm font-sans focus:outline-none focus:ring-2 focus:ring-brand-blue transition-all ${
+                              errors.role
+                                ? "border-rose-500/50 focus:ring-rose-500"
+                                : theme === "dark"
+                                  ? "bg-[#090909]/70 border-white/5 text-white"
+                                  : "bg-zinc-50 border-zinc-200 text-zinc-900"
+                            }`}
+                          />
+                          {errors.role && (
+                            <p className="text-[11px] font-semibold text-rose-400 font-sans flex items-center gap-1 mt-0.5">
+                              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                              <span>{errors.role.message}</span>
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Business Type dropdown (only shown for Demo) */}
+                        {selectedFormType === "Request Demo" ? (
+                          <div className="space-y-1.5">
+                            <label className={`text-[10px] font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                              Business Type
+                            </label>
+                            <select
+                              {...register("businessType")}
+                              className={`w-full px-4 py-3 rounded-xl border text-sm font-sans focus:outline-none focus:ring-2 focus:ring-brand-blue transition-all ${
+                                theme === "dark"
+                                  ? "bg-[#0b0b0b] border-white/5 text-white"
+                                  : "bg-zinc-50 border-zinc-200 text-zinc-900"
+                              }`}
+                            >
+                              <option value="agency">Event Organizer / Agency</option>
+                              <option value="wedding">Wedding Coordinator</option>
+                              <option value="nightlife">Nightclub / Entertainment Bar</option>
+                              <option value="sports">Athletic Arena / Stadium Group</option>
+                              <option value="individual">Independent Content Creator</option>
+                            </select>
+                          </div>
+                        ) : (
+                          <div className="space-y-1 rounded-xl bg-[#090909]/30 dark:bg-zinc-900/20 border border-white/5 p-3.5 text-[11px] font-mono text-zinc-400 flex flex-col justify-center">
+                            <p className="font-bold text-brand-blue flex items-center gap-1">
+                              <Globe className="w-3.5 h-3.5 text-brand-blue" /> Smart Concierge Desk
+                            </p>
+                            <p className="mt-1 opacity-75 leading-normal">We authenticate incoming applications and map them with priority response flags.</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Preferred Demo Type choices (Request Demo only) */}
+                    {selectedFormType === "Request Demo" && (
                       <div className="space-y-1.5">
                         <label className={`text-[10px] font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'}`}>
                           Preferred Demo Type
@@ -569,17 +738,21 @@ export default function RequestDemoSection({ theme }: DemoProps) {
                           </button>
                         </div>
                       </div>
-                    </div>
+                    )}
 
                     {/* Message block textarea */}
                     <div className="space-y-1.5">
                       <label className={`text-[10px] font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                        Additional Message / Requirements
+                        {selectedFormType === "Partner Application" ? "Partnership Proposal / Requirements" : "Additional Message / Requirements"}
                       </label>
                       <textarea
                         {...register("message")}
                         rows={3}
-                        placeholder="Describe your event specifications or target audience capacity..."
+                        placeholder={
+                          selectedFormType === "Partner Application"
+                            ? "Describe your proposed integration, strategic goals, or active audience metrics..."
+                            : "Describe your event specifications or target audience capacity..."
+                        }
                         className={`w-full px-4 py-3 rounded-xl border text-sm font-sans focus:outline-none focus:ring-2 focus:ring-brand-blue transition-all ${
                           errors.message
                             ? "border-rose-500/50 focus:ring-rose-500"
@@ -597,52 +770,30 @@ export default function RequestDemoSection({ theme }: DemoProps) {
                     </div>
                   </fieldset>
 
-                  {/* High Contrast Submit Buttons Block */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                  {/* High Contrast Unified Submit Button */}
+                  <div className="pt-2">
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      onClick={() => {
-                        setSuccessMode("demo");
-                        handleSubmit(onSubmit)();
-                      }}
-                      className={`py-4 px-6 rounded-2xl bg-gradient-to-r from-brand-blue to-indigo-600 text-white font-bold text-sm tracking-wide gap-2.5 flex items-center justify-center cursor-pointer hover:scale-[1.01] hover:shadow-xl hover:shadow-brand-blue/2 = 20 transition-all ${
-                        isSubmitting ? "opacity-75 pointer-events-none" : ""
-                      }`}
+                      className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-brand-blue via-indigo-600 to-brand-purple text-white font-bold text-sm tracking-wide gap-2.5 flex items-center justify-center cursor-pointer hover:scale-[1.01] hover:shadow-xl hover:shadow-brand-purple/20 transition-all disabled:opacity-75 disabled:pointer-events-none"
                     >
-                      {isSubmitting && successMode === "demo" ? (
+                      {isSubmitting ? (
                         <div className="flex items-center space-x-2">
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          <span>Requesting Demo...</span>
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          <span>Submitting...</span>
                         </div>
                       ) : (
                         <div className="flex items-center space-x-2.5">
                           <Send className="w-4 h-4" />
-                          <span>Request Live Demo</span>
-                        </div>
-                      )}
-                    </button>
-
-                    <button
-                      type="submit"
-                      disabled={isSubmitting}
-                      onClick={() => {
-                        setSuccessMode("waitlist");
-                        handleSubmit(onSubmit)();
-                      }}
-                      className={`py-4 px-6 rounded-2xl bg-gradient-to-r from-indigo-600 to-brand-purple text-white font-bold text-sm tracking-wide gap-2.5 flex items-center justify-center cursor-pointer hover:scale-[1.01] hover:shadow-xl hover:shadow-brand-purple/20 transition-all ${
-                        isSubmitting ? "opacity-75 pointer-events-none" : ""
-                      }`}
-                    >
-                      {isSubmitting && successMode === "waitlist" ? (
-                        <div className="flex items-center space-x-2">
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          <span>Joining Queue...</span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center space-x-2.5">
-                          <Sparkles className="w-4 h-4" />
-                          <span>Join Waitlist</span>
+                          <span>
+                            {selectedFormType === "Request Demo" 
+                              ? "Request Live Demo" 
+                              : selectedFormType === "Waitlist" 
+                                ? "Join VIP Waitlist" 
+                                : selectedFormType === "Contact Us" 
+                                  ? "Send Inquiry Message" 
+                                  : "Submit Partner Application"}
+                          </span>
                         </div>
                       )}
                     </button>
