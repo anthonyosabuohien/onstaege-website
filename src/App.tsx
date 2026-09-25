@@ -3,20 +3,23 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { lazy, Suspense, useState, useEffect } from 'react';
 import { Navbar } from './components/Navbar';
 import { HeroSection } from './components/HeroSection';
-import { TrustBadgeSection } from './components/TrustBadgeSection';
-import { EventsSection } from './components/EventsSection';
-import { BusinessesSection } from './components/BusinessesSection';
-import { DestinationsSection } from './components/DestinationsSection';
-import { HowItWorksSection } from './components/HowItWorksSection';
-import { ComparisonSection } from './components/ComparisonSection';
-import { EarlyAccessSection } from './components/EarlyAccessSection';
+import { DeferredSection } from './components/DeferredSection';
 import { Footer } from './components/Footer';
-import { AboutPage } from './components/AboutPage';
-import { VisionPage } from './components/VisionPage';
-import { EarlyAccessModal, EarlyAccessContext } from './components/EarlyAccessModal';
+import type { EarlyAccessContext } from './components/EarlyAccessModal';
+
+const TrustBadgeSection = lazy(() => import('./components/TrustBadgeSection').then((module) => ({ default: module.TrustBadgeSection })));
+const EventsSection = lazy(() => import('./components/EventsSection').then((module) => ({ default: module.EventsSection })));
+const BusinessesSection = lazy(() => import('./components/BusinessesSection').then((module) => ({ default: module.BusinessesSection })));
+const DestinationsSection = lazy(() => import('./components/DestinationsSection').then((module) => ({ default: module.DestinationsSection })));
+const HowItWorksSection = lazy(() => import('./components/HowItWorksSection').then((module) => ({ default: module.HowItWorksSection })));
+const ComparisonSection = lazy(() => import('./components/ComparisonSection').then((module) => ({ default: module.ComparisonSection })));
+const EarlyAccessSection = lazy(() => import('./components/EarlyAccessSection').then((module) => ({ default: module.EarlyAccessSection })));
+const AboutPage = lazy(() => import('./components/AboutPage').then((module) => ({ default: module.AboutPage })));
+const VisionPage = lazy(() => import('./components/VisionPage').then((module) => ({ default: module.VisionPage })));
+const EarlyAccessModal = lazy(() => import('./components/EarlyAccessModal').then((module) => ({ default: module.EarlyAccessModal })));
 
 export default function App() {
   const [earlyAccessOpen, setEarlyAccessOpen] = useState(false);
@@ -82,17 +85,15 @@ export default function App() {
       {/* Main Content Area */}
       {currentView === 'about' ? (
         <main className="w-full flex-1 relative z-10">
-          <AboutPage
-            onNavigate={handleNavigate}
-            onOpenEarlyAccess={handleOpenEarlyAccess}
-          />
+          <Suspense fallback={<div className="min-h-screen" aria-hidden="true" />}>
+            <AboutPage onNavigate={handleNavigate} onOpenEarlyAccess={handleOpenEarlyAccess} />
+          </Suspense>
         </main>
       ) : currentView === 'vision' ? (
         <main className="w-full flex-1 relative z-10">
-          <VisionPage
-            onNavigate={handleNavigate}
-            onOpenEarlyAccess={handleOpenEarlyAccess}
-          />
+          <Suspense fallback={<div className="min-h-screen" aria-hidden="true" />}>
+            <VisionPage onNavigate={handleNavigate} onOpenEarlyAccess={handleOpenEarlyAccess} />
+          </Suspense>
         </main>
       ) : (
         <main className="w-full pt-20 flex-1 relative z-10">
@@ -100,25 +101,25 @@ export default function App() {
           <HeroSection onOpenEarlyAccess={handleOpenEarlyAccess} />
 
           {/* Section 2: Trust Badges & Partner Venue Reviews */}
-          <TrustBadgeSection onOpenEarlyAccess={handleOpenEarlyAccess} />
+          <DeferredSection minHeight={760} component={TrustBadgeSection} onOpenEarlyAccess={handleOpenEarlyAccess} />
 
           {/* Section 3: Events with Dual-State Architecture */}
-          <EventsSection onOpenEarlyAccess={handleOpenEarlyAccess} />
+          <DeferredSection id="events" minHeight={1100} component={EventsSection} onOpenEarlyAccess={handleOpenEarlyAccess} />
 
           {/* Section 4: Businesses with 5-Step Value Funnel Infographic */}
-          <BusinessesSection onOpenEarlyAccess={handleOpenEarlyAccess} />
+          <DeferredSection id="businesses" minHeight={1100} component={BusinessesSection} onOpenEarlyAccess={handleOpenEarlyAccess} />
 
           {/* Section 5: Destinations with 24-Hr Daily Timeline */}
-          <DestinationsSection onOpenEarlyAccess={handleOpenEarlyAccess} />
+          <DeferredSection id="destinations" minHeight={1000} component={DestinationsSection} onOpenEarlyAccess={handleOpenEarlyAccess} />
 
           {/* Section 6: How It Works & Multimodal AI Neural Diagram */}
-          <HowItWorksSection onOpenEarlyAccess={handleOpenEarlyAccess} />
+          <DeferredSection id="how-it-works" minHeight={900} component={HowItWorksSection} onOpenEarlyAccess={handleOpenEarlyAccess} />
 
           {/* Section 7: Without Onstaege vs With Onstaege Infographic */}
-          <ComparisonSection onOpenEarlyAccess={handleOpenEarlyAccess} />
+          <DeferredSection id="comparison" minHeight={900} component={ComparisonSection} onOpenEarlyAccess={handleOpenEarlyAccess} />
 
           {/* Section 8: Final Early Access Gradient Banner */}
-          <EarlyAccessSection onOpenEarlyAccess={handleOpenEarlyAccess} />
+          <DeferredSection minHeight={520} component={EarlyAccessSection} onOpenEarlyAccess={handleOpenEarlyAccess} />
         </main>
       )}
 
@@ -130,10 +131,9 @@ export default function App() {
 
       {/* Central Glassmorphic Early Access Modal */}
       {earlyAccessOpen && (
-        <EarlyAccessModal
-          context={earlyAccessContext}
-          onClose={() => setEarlyAccessOpen(false)}
-        />
+        <Suspense fallback={null}>
+          <EarlyAccessModal context={earlyAccessContext} onClose={() => setEarlyAccessOpen(false)} />
+        </Suspense>
       )}
     </div>
   );

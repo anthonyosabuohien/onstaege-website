@@ -144,6 +144,8 @@ export const TrustBadgeSection: React.FC<TrustBadgeSectionProps> = ({ onOpenEarl
                     <img
                       src={partner.logoUrl}
                       alt={`${partner.name} logo`}
+                      loading="lazy"
+                      decoding="async"
                       className="w-full h-full object-cover"
                     />
                   </div>
@@ -177,6 +179,8 @@ export const TrustBadgeSection: React.FC<TrustBadgeSectionProps> = ({ onOpenEarl
                     <img
                       src={selectedPartner.logoUrl}
                       alt={`${selectedPartner.name} logo`}
+                      loading="lazy"
+                      decoding="async"
                       className="w-full h-full object-cover"
                     />
                   </div>
