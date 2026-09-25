@@ -53,6 +53,8 @@ export const EventsSection: React.FC<EventsSectionProps> = ({ onOpenEarlyAccess 
               <img
                 src={BRAND_ASSETS.concert}
                 alt="Live Afrobeats Festival Arena"
+                loading="lazy"
+                decoding="async"
                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-black/10" />

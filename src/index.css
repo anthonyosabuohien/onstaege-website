@@ -86,6 +86,20 @@
   }
 }
 
+.deferred-section-placeholder {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 900px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* Glassmorphism primitives */
 .glass-panel {
   background: rgba(255, 255, 255, 0.72);
