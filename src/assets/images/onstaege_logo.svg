@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Left beam gradient -->
+    <linearGradient id="beamLeftGrad" x1="0%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="1" />
+      <stop offset="30%" stop-color="#EDEDED" stop-opacity="0.95" />
+      <stop offset="80%" stop-color="#CCCCCC" stop-opacity="0.75" />
+      <stop offset="100%" stop-color="#999999" stop-opacity="0.6" />
+    </linearGradient>
+
+    <!-- Right beam gradient -->
+    <linearGradient id="beamRightGrad" x1="100%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="1" />
+      <stop offset="30%" stop-color="#EDEDED" stop-opacity="0.95" />
+      <stop offset="80%" stop-color="#CCCCCC" stop-opacity="0.75" />
+      <stop offset="100%" stop-color="#999999" stop-opacity="0.6" />
+    </linearGradient>
+
+    <!-- Center beam intersection bright gradient -->
+    <linearGradient id="intersectionGrad" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="1" />
+      <stop offset="100%" stop-color="#F5F5F5" stop-opacity="0.95" />
+    </linearGradient>
+  </defs>
+
+  <!-- Deep Black Stage Background -->
+  <rect width="512" height="512" fill="#000000" />
+
+  <!-- LEFT RED THEATER CURTAIN -->
+  <g id="leftCurtain">
+    <!-- Top red bar -->
+    <path d="M 50 54 L 133 54 L 133 65 L 50 65 Z" fill="#E50914" />
+    <!-- Three draped pleats -->
+    <!-- Pleat 1 (Outer) -->
+    <path d="M 50 65 Q 65 140 20 186 Q 48 135 75 65 Z" fill="#E50914" />
+    <!-- Pleat 2 (Middle) -->
+    <path d="M 80 65 Q 100 135 20 186 Q 78 145 106 65 Z" fill="#E50914" />
+    <!-- Pleat 3 (Inner) -->
+    <path d="M 111 65 Q 133 130 20 186 Q 105 150 133 65 Z" fill="#E50914" />
+  </g>
+
+  <!-- RIGHT RED THEATER CURTAIN (Mirrored) -->
+  <g id="rightCurtain">
+    <!-- Top red bar -->
+    <path d="M 379 54 L 462 54 L 462 65 L 379 65 Z" fill="#E50914" />
+    <!-- Three draped pleats -->
+    <!-- Pleat 1 (Outer) -->
+    <path d="M 462 65 Q 447 140 492 186 Q 464 135 437 65 Z" fill="#E50914" />
+    <!-- Pleat 2 (Middle) -->
+    <path d="M 432 65 Q 412 135 492 186 Q 434 145 406 65 Z" fill="#E50914" />
+    <!-- Pleat 3 (Inner) -->
+    <path d="M 401 65 Q 379 130 492 186 Q 407 150 379 65 Z" fill="#E50914" />
+  </g>
+
+  <!-- SPOTLIGHT BEAMS -->
+  <!-- Left spotlight beam -->
+  <path d="M 137 60 Q 155 52 174 60 L 256 396 L 137 415 Z" fill="url(#beamLeftGrad)" />
+
+  <!-- Right spotlight beam -->
+  <path d="M 338 60 Q 356 52 375 60 L 375 415 L 256 396 Z" fill="url(#beamRightGrad)" />
+
+  <!-- Overlapping bright center beam zone -->
+  <!-- The triangular intersection where both spotlights meet and illuminate intensely -->
+  <path d="M 225 242 L 287 242 L 256 396 Z" fill="url(#intersectionGrad)" opacity="0.9" />
+
+  <!-- STAGE FLOOR SPOTLIGHT PUDDLE -->
+  <ellipse cx="256" cy="430" rx="124" ry="18" fill="#FFFFFF" />
+</svg>

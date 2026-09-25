@@ -1,0 +1,58 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global default-deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.size() >= 3 && email.size() <= 128 && email.matches('^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$');
+    }
+
+    function isValidRole(role) {
+      return role in ['organizer', 'business', 'destination', 'visitor'];
+    }
+
+    function isValidEarlyAccess(data) {
+      return data.keys().hasAll(['email', 'role', 'createdAt']) &&
+             data.keys().hasOnly(['email', 'role', 'spaceName', 'city', 'intent', 'createdAt']) &&
+             isValidEmail(data.email) &&
+             isValidRole(data.role) &&
+             data.createdAt == request.time &&
+             (!('spaceName' in data) || (data.spaceName is string && data.spaceName.size() <= 128)) &&
+             (!('city' in data) || (data.city is string && data.city.size() <= 128)) &&
+             (!('intent' in data) || (data.intent is string && data.intent.size() <= 128));
+    }
+
+    function isValidNewsletter(data) {
+      return data.keys().hasAll(['email', 'createdAt']) &&
+             data.keys().hasOnly(['email', 'source', 'createdAt']) &&
+             isValidEmail(data.email) &&
+             data.createdAt == request.time &&
+             (!('source' in data) || (data.source is string && data.source.size() <= 64));
+    }
+
+    // Early Access Submissions
+    match /early_access_submissions/{submissionId} {
+      allow create: if isValidEarlyAccess(incoming());
+      allow read, update, delete: if false;
+    }
+
+    // Newsletter Subscribers
+    match /newsletter_subscribers/{subscriberId} {
+      allow create: if isValidNewsletter(incoming());
+      allow read, update, delete: if false;
+    }
+
+    // Connection testing doc
+    match /test/{docId} {
+      allow read: if true;
+    }
+  }
+}

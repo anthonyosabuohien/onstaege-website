@@ -1,152 +1,140 @@
-import { useState, useEffect } from "react";
-import { Theme } from "./types";
-import Navbar from "./components/Navbar";
-import Hero from "./components/Hero";
-import SocialProof from "./components/SocialProof";
-import WhyOnstaege from "./components/WhyOnstaege";
-import AppShowcase from "./components/AppShowcase";
-import UseCases from "./components/UseCases";
-import HowItWorks from "./components/HowItWorks";
-import BusinessImpact from "./components/BusinessImpact";
-import NightlifeSection from "./components/NightlifeSection";
-import TestimonialSlider from "./components/TestimonialSlider";
-import RequestDemoSection from "./components/RequestDemoSection";
-import Footer from "./components/Footer";
-import AboutPage from "./components/AboutPage";
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState, useEffect } from 'react';
+import { Navbar } from './components/Navbar';
+import { HeroSection } from './components/HeroSection';
+import { TrustBadgeSection } from './components/TrustBadgeSection';
+import { EventsSection } from './components/EventsSection';
+import { BusinessesSection } from './components/BusinessesSection';
+import { DestinationsSection } from './components/DestinationsSection';
+import { HowItWorksSection } from './components/HowItWorksSection';
+import { ComparisonSection } from './components/ComparisonSection';
+import { EarlyAccessSection } from './components/EarlyAccessSection';
+import { Footer } from './components/Footer';
+import { AboutPage } from './components/AboutPage';
+import { VisionPage } from './components/VisionPage';
+import { EarlyAccessModal, EarlyAccessContext } from './components/EarlyAccessModal';
 
 export default function App() {
-  const theme: Theme = "dark";
-
-  const [currentPage, setCurrentPage] = useState<"home" | "about">(() => {
-    const path = window.location.pathname;
-    const hash = window.location.hash;
-    return (path === "/about" || hash === "#about" || hash === "#/about") ? "about" : "home";
+  const [earlyAccessOpen, setEarlyAccessOpen] = useState(false);
+  const [earlyAccessContext, setEarlyAccessContext] = useState<EarlyAccessContext>({
+    intent: 'General Priority Early Access'
+  });
+  const [currentView, setCurrentView] = useState<'home' | 'about' | 'vision'>(() => {
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash.toLowerCase();
+      if (hash === '#about') return 'about';
+      if (hash === '#vision') return 'vision';
+    }
+    return 'home';
   });
 
-  const navigateTo = (page: "home" | "about") => {
-    setCurrentPage(page);
-    const path = page === "about" ? "/about" : "/";
-    if (window.location.pathname !== path) {
-      window.history.pushState({ page }, "", path);
-    }
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
   useEffect(() => {
-    const handlePopState = () => {
-      const path = window.location.pathname;
-      const hash = window.location.hash;
-      if (path === "/about" || hash === "#about" || hash === "#/about") {
-        setCurrentPage("about");
-      } else {
-        setCurrentPage("home");
+    const handleHash = () => {
+      const hash = window.location.hash.toLowerCase();
+      if (hash === '#about') {
+        setCurrentView('about');
+      } else if (hash === '#vision') {
+        setCurrentView('vision');
+      } else if (hash === '#home' || hash === '' || hash.startsWith('#hero')) {
+        setCurrentView('home');
       }
     };
-    window.addEventListener("popstate", handlePopState);
-    window.addEventListener("hashchange", handlePopState);
-    return () => {
-      window.removeEventListener("popstate", handlePopState);
-      window.removeEventListener("hashchange", handlePopState);
-    };
+
+    window.addEventListener('hashchange', handleHash);
+    return () => window.removeEventListener('hashchange', handleHash);
   }, []);
 
-  // Keep the document element classes synced up
-  useEffect(() => {
-    const root = window.document.documentElement;
-    root.classList.add("dark");
-  }, []);
-
-  // Handle direct scrolling to specific anchor IDs safely
-  const scrollToSection = (id: string) => {
-    const element = document.getElementById(id);
-    if (element) {
-      element.scrollIntoView({ behavior: "smooth" });
+  const handleNavigate = (view: 'home' | 'about' | 'vision') => {
+    setCurrentView(view);
+    if (view === 'about') {
+      window.location.hash = '#about';
+    } else if (view === 'vision') {
+      window.location.hash = '#vision';
+    } else {
+      window.location.hash = '#hero';
     }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleOpenEarlyAccess = (context?: EarlyAccessContext) => {
+    if (context) {
+      setEarlyAccessContext(context);
+    } else {
+      setEarlyAccessContext({ intent: 'General Priority Early Access' });
+    }
+    setEarlyAccessOpen(true);
   };
 
   return (
-    <div
-      className={`min-h-screen relative font-sans transition-colors duration-500 overflow-x-hidden ${
-        theme === "dark"
-          ? "bg-[#090909] text-white"
-          : "bg-[#FAFAFA] text-zinc-900"
-      }`}
-    >
-      {/* Background grids styling for Figma template look */}
-      <div 
-        className="absolute inset-0 z-0 pointer-events-none opacity-20 dark:opacity-30" 
-        style={{
-          backgroundImage: `radial-gradient(circle at center, rgb(124, 58, 237, 0.08) 1.5px, transparent 1.5px)`,
-          backgroundSize: "28px 28px"
-        }}
+    <div className="min-h-screen font-body text-on-surface antialiased flex flex-col relative overflow-x-hidden bg-background">
+      
+      {/* Top Floating Glassmorphic Navbar */}
+      <Navbar
+        onOpenEarlyAccess={handleOpenEarlyAccess}
+        currentView={currentView}
+        onNavigate={handleNavigate}
       />
 
-      {/* Synchronized Transparent became Frosted Glass Navigation Bar */}
-      <Navbar 
-        theme={theme} 
-        currentPage={currentPage} 
-        onPageChange={navigateTo} 
-      />
-
-      {currentPage === "home" ? (
-        /* Premium Hero block with dynamic background slides & App mock rotating screens */
-        <main className="relative z-10">
-          
-          {/* Hero Section */}
-          <Hero 
-            theme={theme} 
-            onRequestDemo={() => scrollToSection("contact")} 
+      {/* Main Content Area */}
+      {currentView === 'about' ? (
+        <main className="w-full flex-1 relative z-10">
+          <AboutPage
+            onNavigate={handleNavigate}
+            onOpenEarlyAccess={handleOpenEarlyAccess}
           />
-
-          {/* Live Counters Section */}
-          <SocialProof theme={theme} />
-
-          {/* Brand narrative Why Onstaege with pulsing coordinates map */}
-          <WhyOnstaege theme={theme} />
-
-          {/* Responsive triple-phone screen solutions showcase */}
-          <AppShowcase theme={theme} />
-
-          {/* Continuous horizontal usecases slider deck */}
-          <UseCases theme={theme} />
-
-          {/* Four step morph flowchart onboarding */}
-          <HowItWorks theme={theme} />
-
-          {/* 100x unconstrained secondary attendee financial dashboard modeling */}
-          <BusinessImpact theme={theme} />
-
-          {/* Heavy luxury private table / venue request dashboard section */}
-          <NightlifeSection 
-            theme={theme} 
-            onRequestDemo={() => scrollToSection("contact")} 
+        </main>
+      ) : currentView === 'vision' ? (
+        <main className="w-full flex-1 relative z-10">
+          <VisionPage
+            onNavigate={handleNavigate}
+            onOpenEarlyAccess={handleOpenEarlyAccess}
           />
-
-          {/* Reviews frosted slider review platform */}
-          <TestimonialSlider theme={theme} />
-
-          {/* High performance request calendar concierges */}
-          <RequestDemoSection theme={theme} />
-
         </main>
       ) : (
-        <AboutPage 
-          theme={theme} 
-          onRequestDemo={() => {
-            navigateTo("home");
-            setTimeout(() => {
-              const element = document.getElementById("contact");
-              if (element) {
-                element.scrollIntoView({ behavior: "smooth" });
-              }
-            }, 200);
-          }}
-          onPageChange={navigateTo}
-        />
+        <main className="w-full pt-20 flex-1 relative z-10">
+          {/* Section 1: Hero with Glassmorphism & Infographic Flow */}
+          <HeroSection onOpenEarlyAccess={handleOpenEarlyAccess} />
+
+          {/* Section 2: Trust Badges & Partner Venue Reviews */}
+          <TrustBadgeSection onOpenEarlyAccess={handleOpenEarlyAccess} />
+
+          {/* Section 3: Events with Dual-State Architecture */}
+          <EventsSection onOpenEarlyAccess={handleOpenEarlyAccess} />
+
+          {/* Section 4: Businesses with 5-Step Value Funnel Infographic */}
+          <BusinessesSection onOpenEarlyAccess={handleOpenEarlyAccess} />
+
+          {/* Section 5: Destinations with 24-Hr Daily Timeline */}
+          <DestinationsSection onOpenEarlyAccess={handleOpenEarlyAccess} />
+
+          {/* Section 6: How It Works & Multimodal AI Neural Diagram */}
+          <HowItWorksSection onOpenEarlyAccess={handleOpenEarlyAccess} />
+
+          {/* Section 7: Without Onstaege vs With Onstaege Infographic */}
+          <ComparisonSection onOpenEarlyAccess={handleOpenEarlyAccess} />
+
+          {/* Section 8: Final Early Access Gradient Banner */}
+          <EarlyAccessSection onOpenEarlyAccess={handleOpenEarlyAccess} />
+        </main>
       )}
 
-      {/* Structured sitemap index and bottom signature values */}
-      <Footer theme={theme} onPageChange={navigateTo} />
+      {/* Section 9: Dark Glassmorphic Footer */}
+      <Footer
+        onOpenEarlyAccess={handleOpenEarlyAccess}
+        onNavigate={handleNavigate}
+      />
+
+      {/* Central Glassmorphic Early Access Modal */}
+      {earlyAccessOpen && (
+        <EarlyAccessModal
+          context={earlyAccessContext}
+          onClose={() => setEarlyAccessOpen(false)}
+        />
+      )}
     </div>
   );
 }

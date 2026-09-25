@@ -1,0 +1,78 @@
+{
+  "entities": {
+    "EarlyAccessSubmission": {
+      "title": "Early Access Submission",
+      "description": "An early access application submitted by an organizer, business, destination, or visitor.",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "User contact email address",
+          "maxLength": 128
+        },
+        "role": {
+          "type": "string",
+          "description": "Target audience category (organizer, business, destination, visitor)",
+          "enum": ["organizer", "business", "destination", "visitor"],
+          "maxLength": 32
+        },
+        "spaceName": {
+          "type": "string",
+          "description": "Name of venue, brand, or event",
+          "maxLength": 128
+        },
+        "city": {
+          "type": "string",
+          "description": "Location or city",
+          "maxLength": 128
+        },
+        "intent": {
+          "type": "string",
+          "description": "The specific feature context or intent",
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp"
+        }
+      },
+      "required": ["email", "role", "createdAt"]
+    },
+    "NewsletterSubscriber": {
+      "title": "Newsletter Subscriber",
+      "description": "A subscribed email for founder dispatches and protocol updates.",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Subscriber email address",
+          "maxLength": 128
+        },
+        "source": {
+          "type": "string",
+          "description": "Page or component source",
+          "maxLength": 64
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Subscription timestamp"
+        }
+      },
+      "required": ["email", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/early_access_submissions/{submissionId}": {
+      "schema": "EarlyAccessSubmission",
+      "description": "Collection of early access requests"
+    },
+    "/newsletter_subscribers/{subscriberId}": {
+      "schema": "NewsletterSubscriber",
+      "description": "Collection of newsletter subscriptions"
+    }
+  }
+}

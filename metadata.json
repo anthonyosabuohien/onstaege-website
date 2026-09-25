@@ -1,6 +1,6 @@
 {
-  "name": "Onstaege",
-  "description": "An immersive real-time event experience platform that extends physical events to global audiences.",
+  "name": "Onstaege - The AI-Powered Digital Layer for the Physical World",
+  "description": "Onstaege digitizes physical businesses, events, and destinations. Experience and interact with real-world spaces on-site or globally with personalized AI layers.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
