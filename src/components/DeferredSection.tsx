@@ -1,5 +1,6 @@
 import React, { Suspense, useEffect, useRef, useState } from 'react';
 import type { EarlyAccessContext } from './EarlyAccessModal';
+import { ContentSkeleton } from './ContentSkeleton';
 
 interface DeferredSectionProps {
   id?: string;
@@ -41,20 +42,19 @@ export const DeferredSection: React.FC<DeferredSectionProps> = ({
     return () => observer.disconnect();
   }, []);
 
-  const placeholder = (
-    <div
-      ref={markerRef}
+  const placeholder = (loading: boolean) => (
+    <ContentSkeleton
+      markerRef={markerRef}
       id={id}
-      aria-hidden="true"
-      style={{ minHeight }}
-      className="deferred-section-placeholder"
+      minHeight={minHeight}
+      loading={loading}
     />
   );
 
-  if (!shouldRender) return placeholder;
+  if (!shouldRender) return placeholder(false);
 
   return (
-    <Suspense fallback={placeholder}>
+    <Suspense fallback={placeholder(true)}>
       <Component onOpenEarlyAccess={onOpenEarlyAccess} />
     </Suspense>
   );
