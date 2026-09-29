@@ -86,9 +86,92 @@
   }
 }
 
-.deferred-section-placeholder {
+.content-skeleton {
   content-visibility: auto;
   contain-intrinsic-size: auto 900px;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 6rem 1.5rem;
+  overflow: hidden;
+}
+
+.content-skeleton--page {
+  padding-top: 9rem;
+}
+
+.content-skeleton__inner {
+  width: min(1120px, 100%);
+  margin: 0 auto;
+}
+
+.skeleton-shape {
+  position: relative;
+  overflow: hidden;
+  background: rgba(217, 227, 251, 0.72);
+  border: 1px solid rgba(200, 196, 212, 0.28);
+}
+
+.skeleton-shape::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 28%, rgba(255, 255, 255, 0.82) 46%, transparent 64%);
+  transform: translateX(-110%);
+  animation: skeleton-shimmer 1.65s ease-in-out infinite;
+}
+
+.content-skeleton__eyebrow {
+  width: 7.5rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  margin-bottom: 1.25rem;
+}
+
+.content-skeleton__title {
+  width: min(32rem, 76%);
+  height: 3.25rem;
+  border-radius: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.content-skeleton__copy {
+  width: min(39rem, 92%);
+  height: 0.9rem;
+  border-radius: 999px;
+  margin-bottom: 0.65rem;
+}
+
+.content-skeleton__copy--short { width: min(27rem, 68%); }
+
+.content-skeleton__grid {
+  display: grid;
+  grid-template-columns: 1.35fr 0.65fr;
+  gap: 1.5rem;
+  margin-top: 3.5rem;
+}
+
+.content-skeleton__feature,
+.content-skeleton__card {
+  border-radius: 1.75rem;
+}
+
+.content-skeleton__feature { min-height: 20rem; }
+.content-skeleton__stack { display: grid; gap: 1.5rem; }
+.content-skeleton__card { min-height: 12rem; }
+.content-skeleton__card--short { min-height: 6.5rem; }
+
+@keyframes skeleton-shimmer {
+  to { transform: translateX(110%); }
+}
+
+@media (max-width: 640px) {
+  .content-skeleton { padding: 4.5rem 1.25rem; }
+  .content-skeleton__title { height: 2.4rem; }
+  .content-skeleton__grid { grid-template-columns: 1fr; margin-top: 2.5rem; }
+  .content-skeleton__feature { min-height: 15rem; }
+  .content-skeleton__stack { grid-template-columns: 1fr 1fr; }
+  .content-skeleton__card { min-height: 8rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {

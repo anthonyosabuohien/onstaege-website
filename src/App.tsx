@@ -7,6 +7,7 @@ import React, { lazy, Suspense, useState, useEffect } from 'react';
 import { Navbar } from './components/Navbar';
 import { HeroSection } from './components/HeroSection';
 import { DeferredSection } from './components/DeferredSection';
+import { ContentSkeleton } from './components/ContentSkeleton';
 import { Footer } from './components/Footer';
 import type { EarlyAccessContext } from './components/EarlyAccessModal';
 
@@ -85,13 +86,13 @@ export default function App() {
       {/* Main Content Area */}
       {currentView === 'about' ? (
         <main className="w-full flex-1 relative z-10">
-          <Suspense fallback={<div className="min-h-screen" aria-hidden="true" />}>
+          <Suspense fallback={<ContentSkeleton minHeight={900} variant="page" />}>
             <AboutPage onNavigate={handleNavigate} onOpenEarlyAccess={handleOpenEarlyAccess} />
           </Suspense>
         </main>
       ) : currentView === 'vision' ? (
         <main className="w-full flex-1 relative z-10">
-          <Suspense fallback={<div className="min-h-screen" aria-hidden="true" />}>
+          <Suspense fallback={<ContentSkeleton minHeight={900} variant="page" />}>
             <VisionPage onNavigate={handleNavigate} onOpenEarlyAccess={handleOpenEarlyAccess} />
           </Suspense>
         </main>
